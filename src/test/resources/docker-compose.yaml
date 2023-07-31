@@ -82,7 +82,7 @@ services:
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
   conduktor-gateway:
-    image: conduktor/conduktor-gateway:${GATEWAY_VERSION}
+    image: conduktor/conduktor-proxy:${GATEWAY_VERSION}
     hostname: conduktor-gateway
     depends_on:
       kafka1:
