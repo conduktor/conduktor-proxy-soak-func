@@ -1,4 +1,4 @@
-package io.conduktor.proxy.soak.func.config;
+package io.conduktor.gateway.soak.func.config;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

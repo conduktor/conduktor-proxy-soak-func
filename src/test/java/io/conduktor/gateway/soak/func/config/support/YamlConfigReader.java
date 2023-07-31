@@ -1,4 +1,4 @@
-package io.conduktor.proxy.soak.func.config.support;
+package io.conduktor.gateway.soak.func.config.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;

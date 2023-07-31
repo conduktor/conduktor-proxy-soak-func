@@ -1,7 +1,7 @@
-package io.conduktor.proxy.soak.func;
+package io.conduktor.gateway.soak.func;
 
-import io.conduktor.proxy.soak.func.config.Scenario;
-import io.conduktor.proxy.soak.func.config.support.YamlConfigReader;
+import io.conduktor.gateway.soak.func.config.Scenario;
+import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.jetbrains.annotations.NotNull;
@@ -116,7 +116,7 @@ public class ScenarioTest {
                 .waitingFor("kafka1", new KafkaTopicsWaitStrategy(9092))
                 .waitingFor("kafka2", new KafkaTopicsWaitStrategy(9093))
                 .waitingFor("schema-registry", Wait.forHttp("/subjects").forStatusCode(200))
-                .waitingFor("conduktor-proxy",Wait.forListeningPort())
+                .waitingFor("conduktor-gateway",Wait.forListeningPort())
         ;
         try {
             composeContainer.start();
@@ -151,7 +151,7 @@ public class ScenarioTest {
         var composeConfig = yaml.load(ScenarioTest.class.getResourceAsStream(DOCKER_COMPOSE_FILE_PATH));
 
         appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "kafka1", kafkaConfigs);
-        appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "conduktor-proxy", gatewayConfigs);
+        appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "conduktor-gateway", gatewayConfigs);
 
         // Save the modified composeConfig to a new file
         var tempComposeFile = new File(ScenarioTest.class.getResource(DOCKER_COMPOSE_FOLDER_PATH).getPath() + "docker-compose.yaml");

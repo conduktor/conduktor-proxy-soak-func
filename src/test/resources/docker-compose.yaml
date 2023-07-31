@@ -81,9 +81,9 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
-  conduktor-proxy:
-    image: conduktor/conduktor-proxy:${GATEWAY_VERSION}
-    hostname: conduktor-proxy
+  conduktor-gateway:
+    image: conduktor/conduktor-gateway:${GATEWAY_VERSION}
+    hostname: conduktor-gateway
     depends_on:
       kafka1:
         condition: service_healthy
@@ -101,7 +101,7 @@ services:
       SSL_KEY_TYPE: pkcs12
       USER_POOL_TYPE: JWT
       USER_POOL_SECRET_KEY: OaM4lG+xO5Gz10GB1apZ2XDUuWw/sK1H+XXcgExpYm2YEHgnvEf63q9TJraebD3SQb/JzefcZkUEKz/8V5V+Fg==
-      PROXY_HOST: conduktor-proxy
+      PROXY_HOST: conduktor-gateway
       SCHEMA_REGISTRY_HOST: http://schema-registry:8081
       INTERCEPTOR_CONFIG_LOCATION: "~"
       ADMIN_API_USERS: "[{username: admin, password: conduktor}]"
@@ -125,12 +125,12 @@ services:
 #    hostname: ksqldb-server
 #    container_name: ksqldb-server
 #    depends_on:
-#      - conduktor-proxy
+#      - conduktor-gateway
 #    ports:
 #      - "8088:8088"
 #    environment:
 #      KSQL_LISTENERS: http://0.0.0.0:8088
-#      KSQL_BOOTSTRAP_SERVERS: conduktor-proxy:6969
+#      KSQL_BOOTSTRAP_SERVERS: conduktor-gateway:6969
 #      KSQL_HOST_NAME: ksqldb-server
 #      KSQL_SECURITY_PROTOCOL: SASL_PLAINTEXT
 #      KSQL_SASL_MECHANISM: PLAIN

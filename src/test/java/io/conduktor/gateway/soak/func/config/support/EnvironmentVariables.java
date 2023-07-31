@@ -1,4 +1,4 @@
-package io.conduktor.proxy.soak.func.config.support;
+package io.conduktor.gateway.soak.func.config.support;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
