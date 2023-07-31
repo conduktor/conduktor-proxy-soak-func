@@ -15,7 +15,7 @@ public class Scenario {
     private Service kafka;
     private Service gateway;
     private LinkedHashMap<String, String> plugins;
-    private Workflow workflow;
+    private IO io;
 
 
     @Data
@@ -39,10 +39,19 @@ public class Scenario {
     @ToString
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Workflow {
-        private String gatewayRequest;
-        private String kafkaResponse;
-        private String gatewayResponse;
+    public static class IO {
+        private Record input;
+        private Record output;
+    }
+
+    @Data
+    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Record {
+        private LinkedHashMap<String, String> headers;
+        private String key;
+        private String value;
     }
 }
 

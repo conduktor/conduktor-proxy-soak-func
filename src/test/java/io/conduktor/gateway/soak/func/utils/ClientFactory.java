@@ -1,4 +1,4 @@
-package io.conduktor.gateway.soak.func;
+package io.conduktor.gateway.soak.func.utils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -19,8 +19,31 @@ public class ClientFactory implements Closeable {
     private final List<AutoCloseable> closeables;
     public Properties kafkaProperties;
 
+    public static ClientFactory generateClientFactory(String clientId) {
+        return new ClientFactory(getGatewayProperties(clientId), getKafkaProperties());
+    }
 
-    public ClientFactory(Properties gatewayProperties, Properties kafkaProperties) {
+    private static Properties getGatewayProperties(String clientId) {
+        Properties clientProperties = new Properties();
+        clientProperties.put("bootstrap.servers", "localhost:6969");
+        clientProperties.put("sasl.mechanism", "PLAIN");
+        clientProperties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        clientProperties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        clientProperties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        clientProperties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        clientProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        clientProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        clientProperties.put("client.id", clientId);
+        return clientProperties;
+    }
+
+    private static Properties getKafkaProperties() {
+        Properties clientProperties = new Properties();
+        clientProperties.put("bootstrap.servers", "localhost:29092");
+        return clientProperties;
+    }
+
+    public ClientFactory( Properties gatewayProperties, Properties kafkaProperties) {
         this.closeables = new ArrayList<>();
         this.gatewayProperties = gatewayProperties;
         this.kafkaProperties = kafkaProperties;
@@ -117,6 +140,7 @@ public class ClientFactory implements Closeable {
     private void dumpConfig(final String type, final Map<String, Object> config) {
         log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
     }
+
 
 
 }

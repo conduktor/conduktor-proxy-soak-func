@@ -7,41 +7,16 @@ gateway:
   environment:
     AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
 plugins:
-  dynamic-header: '{
-        "pluginClass": "io.conduktor.gateway.interceptor.DynamicHeaderInjectionPlugin",
-        "priority": 100,
-        "config": {
-            "topic": "injectHeaderTopic",
-            "headers": {
-              "X-RAW_KEY": "a value",
-              "X-USER_IP": "{{userIp}}",
-              "X-USERNAME": "{{user}}",
-              "X-USER_IP_GATEWAY_IP_USERNAME": "{{userIp}} to {{gatewayIp}} of {{user}}"
-            }
-        }
-  }'
-workflow:
-  gatewayRequest: '{
-                "key": "message2_key",
-                "value": "Hello, Kafka! This is message 2.",
-                "headers": [
-                  ("header_key3", "header_value3"),
-                  ("header_key4", "header_value4")
-                ]
-            }'
-  kafkaResponse: '{
-              "key": "message2_key",
-              "value": "Hello, Kafka! This is message 2.",
-              "headers": [
-                ("header_key3", "header_value3"),
-                ("header_key4", "header_value4")
-              ]
-          }'
-  gatewayResponse: '{
-              "key": "message2_key",
-              "value": "Hello, Kafka! This is message 2.",
-              "headers": [
-                ("header_key3", "header_value3"),
-                ("header_key4", "header_value4")
-              ]
-          }'
+io:
+  input:
+    key: "key1"
+    value: "value1"
+    headers:
+      header_key1: "headerValue1"
+      header_key2: "headerValue2"
+  output:
+    key: "key1"
+    value: "value1"
+    headers:
+      header_key1: "headerValue1"
+      header_key2: "headerValue2"

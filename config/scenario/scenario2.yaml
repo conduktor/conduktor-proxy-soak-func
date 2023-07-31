@@ -7,28 +7,16 @@ gateway:
   environment:
     AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
 plugins:
-workflow:
-  gatewayRequest: '{
-                "key": "message2_key",
-                "value": "Hello, Kafka! This is message 2.",
-                "headers": [
-                  ("header_key3", "header_value3"),
-                  ("header_key4", "header_value4")
-                ]
-            }'
-  kafkaResponse: '{
-              "key": "message2_key",
-              "value": "Hello, Kafka! This is message 2.",
-              "headers": [
-                ("header_key3", "header_value3"),
-                ("header_key4", "header_value4")
-              ]
-          }'
-  gatewayResponse: '{
-              "key": "message2_key",
-              "value": "Hello, Kafka! This is message 2.",
-              "headers": [
-                ("header_key3", "header_value3"),
-                ("header_key4", "header_value4")
-              ]
-          }'
+io:
+  input:
+    key: "key2"
+    value: "value2"
+    headers:
+      header_key3: "headerValue3"
+      header_key4: "headerValue4"
+  output:
+    key: "key2"
+    value: "value2"
+    headers:
+      header_key3: "headerValue3"
+      header_key4: "headerValue4"

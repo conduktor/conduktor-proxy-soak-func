@@ -1,4 +1,4 @@
-package io.conduktor.gateway.soak.func;
+package io.conduktor.gateway.soak.func.utils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
