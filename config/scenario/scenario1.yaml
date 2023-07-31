@@ -1,0 +1,47 @@
+kafka:
+  version: latest
+  environment:
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+gateway:
+  version: 1.8.2.12-amd64
+  environment:
+    AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
+plugins:
+  dynamic-header: '{
+        "pluginClass": "io.conduktor.gateway.interceptor.DynamicHeaderInjectionPlugin",
+        "priority": 100,
+        "config": {
+            "topic": "injectHeaderTopic",
+            "headers": {
+              "X-RAW_KEY": "a value",
+              "X-USER_IP": "{{userIp}}",
+              "X-USERNAME": "{{user}}",
+              "X-USER_IP_GATEWAY_IP_USERNAME": "{{userIp}} to {{gatewayIp}} of {{user}}"
+            }
+        }
+  }'
+workflow:
+  gatewayRequest: '{
+                "key": "message2_key",
+                "value": "Hello, Kafka! This is message 2.",
+                "headers": [
+                  ("header_key3", "header_value3"),
+                  ("header_key4", "header_value4")
+                ]
+            }'
+  kafkaResponse: '{
+              "key": "message2_key",
+              "value": "Hello, Kafka! This is message 2.",
+              "headers": [
+                ("header_key3", "header_value3"),
+                ("header_key4", "header_value4")
+              ]
+          }'
+  gatewayResponse: '{
+              "key": "message2_key",
+              "value": "Hello, Kafka! This is message 2.",
+              "headers": [
+                ("header_key3", "header_value3"),
+                ("header_key4", "header_value4")
+              ]
+          }'
