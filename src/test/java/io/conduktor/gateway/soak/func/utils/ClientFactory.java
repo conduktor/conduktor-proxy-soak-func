@@ -18,15 +18,16 @@ public class ClientFactory implements Closeable {
     public Properties gatewayProperties;
     private final List<AutoCloseable> closeables;
     public Properties kafkaProperties;
+    public String tenant;
 
-    public static ClientFactory generateClientFactory(String clientId) {
-        return new ClientFactory(getGatewayProperties(clientId), getKafkaProperties());
+    public static ClientFactory generateClientFactory(String clientId, Map<String, String> properties) {
+
+        return new ClientFactory(getGatewayProperties(clientId, properties), getKafkaProperties());
     }
 
-    private static Properties getGatewayProperties(String clientId) {
+    private static Properties getGatewayProperties(String clientId, Map<String, String> properties) {
         Properties clientProperties = new Properties();
         clientProperties.put("bootstrap.servers", "localhost:6969");
-        clientProperties.put("sasl.mechanism", "PLAIN");
         clientProperties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         clientProperties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         clientProperties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
@@ -34,6 +35,9 @@ public class ClientFactory implements Closeable {
         clientProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         clientProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         clientProperties.put("client.id", clientId);
+        if (Objects.nonNull(properties)) {
+            clientProperties.putAll(properties);
+        }
         return clientProperties;
     }
 
@@ -43,10 +47,17 @@ public class ClientFactory implements Closeable {
         return clientProperties;
     }
 
-    public ClientFactory( Properties gatewayProperties, Properties kafkaProperties) {
+    public ClientFactory(Properties gatewayProperties, Properties kafkaProperties) {
         this.closeables = new ArrayList<>();
         this.gatewayProperties = gatewayProperties;
         this.kafkaProperties = kafkaProperties;
+    }
+
+    public ClientFactory(Properties gatewayProperties, Properties kafkaProperties, String tenant) {
+        this.closeables = new ArrayList<>();
+        this.gatewayProperties = gatewayProperties;
+        this.kafkaProperties = kafkaProperties;
+        this.tenant = tenant;
     }
 
     public AdminClient gatewayAdmin() {
@@ -140,7 +151,6 @@ public class ClientFactory implements Closeable {
     private void dumpConfig(final String type, final Map<String, Object> config) {
         log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
     }
-
 
 
 }

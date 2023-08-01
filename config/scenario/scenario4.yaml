@@ -1,0 +1,44 @@
+kafka:
+  version: latest
+  environment:
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+gateway:
+  version: 2.0.0.5
+  environment:
+    AUTHENTICATION_AUTHENTICATOR_TYPE: SASL_PLAIN
+  properties:
+    security.protocol: SASL_PLAINTEXT
+    sasl.mechanism: PLAIN
+    sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+plugins:
+  dynamicHeaderInjectionPlugin:
+    pluginClass: "io.conduktor.gateway.interceptor.DynamicHeaderInjectionPlugin"
+    "priority": 100
+    "config":
+      "topic": ".*"
+      "headers":
+        "X-RAW_KEY": "a value"
+        "X-USERNAME": "{{user}}"
+io:
+  input:
+    key: "key3"
+    value: "value3"
+    headers:
+      header_key1: "headerValue5"
+      header_key2: "headerValue5"
+  kafka:
+    key: "key3"
+    value: "value3"
+    headers:
+      header_key1: "headerValue5"
+      header_key2: "headerValue5"
+      X-RAW_KEY: "a value"
+      X-USERNAME: "franklx"
+  output:
+    key: "key3"
+    value: "value3"
+    headers:
+      header_key1: "headerValue5"
+      header_key2: "headerValue5"
+      X-RAW_KEY: "a value"
+      X-USERNAME: "franklx"

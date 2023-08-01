@@ -3,12 +3,18 @@ kafka:
   environment:
     KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
 gateway:
-  version: 1.8.2.12-amd64
+  version: 2.0.0.5
   environment:
     AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
 plugins:
 io:
   input:
+    key: "key2"
+    value: "value2"
+    headers:
+      header_key3: "headerValue3"
+      header_key4: "headerValue4"
+  kafka:
     key: "key2"
     value: "value2"
     headers:

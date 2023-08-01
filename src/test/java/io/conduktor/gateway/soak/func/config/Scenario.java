@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 public class Scenario {
     private Service kafka;
     private Service gateway;
-    private LinkedHashMap<String, String> plugins;
+    private LinkedHashMap<String, PluginRequest> plugins;
     private IO io;
 
 
@@ -33,6 +33,7 @@ public class Scenario {
     public static class Service {
         private String version;
         private LinkedHashMap<String, String> environment;
+        private LinkedHashMap<String, String> properties;
     }
 
     @Data
@@ -41,6 +42,7 @@ public class Scenario {
     @AllArgsConstructor
     public static class IO {
         private Record input;
+        private Record kafka;
         private Record output;
     }
 

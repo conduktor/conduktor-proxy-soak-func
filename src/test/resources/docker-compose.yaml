@@ -88,7 +88,7 @@ services:
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
   conduktor-gateway:
-    image: conduktor/conduktor-proxy:${GATEWAY_VERSION}
+    image: ghcr.io/conduktor/conduktor-proxy:${GATEWAY_VERSION}
     hostname: conduktor-gateway
     depends_on:
       kafka1:
@@ -101,21 +101,18 @@ services:
       - "9999:9999"
       - "8888:8888"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092, kafka2:9093
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092
       SSL_KEY_PASSWORD: changeit
       SSL_KEY_STORE_PASSWORD: changeit
       SSL_KEY_TYPE: pkcs12
-      USER_POOL_TYPE: JWT
-      USER_POOL_SECRET_KEY: OaM4lG+xO5Gz10GB1apZ2XDUuWw/sK1H+XXcgExpYm2YEHgnvEf63q9TJraebD3SQb/JzefcZkUEKz/8V5V+Fg==
       PROXY_HOST: localhost
       SCHEMA_REGISTRY_HOST: http://schema-registry:8081
       INTERCEPTOR_CONFIG_LOCATION: "~"
-      ADMIN_API_USERS: "[{username: admin, password: conduktor}]"
-      JAVA_TOOL_OPTIONS: -Dcom.sun.management.jmxremote.port=9999 -Dcom.sun.management.jmxremote.rmi.port=9999 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=127.0.0.1
-      DOWNSTREAM_THREAD: 10
-#      AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
-#      SSL_KEY_STORE_PATH: ./config/tls/sasl-ssl/keystore.jks
-#      SSL_KEY_STORE_PATH: ./config/tls/ssl/keystore.jks
+      FEATURE_FLAGS_JWT_TOKEN_ENDPOINT: "true"
+      FEATURE_FLAGS_PASS_THROUGH: "false"
+    #      AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
+    #      SSL_KEY_STORE_PATH: ./config/tls/sasl-ssl/keystore.jks
+    #      SSL_KEY_STORE_PATH: ./config/tls/ssl/keystore.jks
     volumes:
       - type: bind
         source: "./config/tls"

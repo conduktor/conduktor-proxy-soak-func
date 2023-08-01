@@ -102,6 +102,12 @@
             <version>5.1.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.auth0</groupId>
+            <artifactId>java-jwt</artifactId>
+            <version>4.3.0</version>
+            <scope>test</scope>
+        </dependency>
         <!-- Add other dependencies as needed -->
     </dependencies>
 

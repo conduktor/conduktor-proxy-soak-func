@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
-public class ContainerUtils {
+public class DockerComposeContainerUtils {
 
     private static final String DOCKER_COMPOSE_FILE_PATH = "/docker-compose.yaml";
     private static final String DOCKER_COMPOSE_FOLDER_PATH = "/docker-compose/";
