@@ -1,28 +1,57 @@
-kafka:
-  version: latest
-  environment:
-    KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
-gateway:
-  version: 2.0.0.5
-  environment:
-    AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
-plugins:
-io:
-  input:
-    key: "key1"
-    value: "value1"
-    headers:
-      header_key1: "headerValue1"
-      header_key2: "headerValue2"
+title: Simple test with NONE authenticator type
+docker:
   kafka:
-    key: "key1"
-    value: "value1"
-    headers:
-      header_key1: "headerValue1"
-      header_key2: "headerValue2"
-  output:
-    key: "key1"
-    value: "value1"
-    headers:
-      header_key1: "headerValue1"
-      header_key2: "headerValue2"
+    version: latest
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+  gateway:
+    version: 2.0.0.alpha
+    environment:
+      GATEWAY_SECURITY_PROTOCOL: NONE
+      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "false"
+actions:
+  - type: CREATE_TOPIC
+    target: GATEWAY
+    topic: topic1
+  - type: PRODUCE
+    target: GATEWAY
+    topic: topic1
+    messages:
+      - key: "key1"
+        value: "value1"
+        headers:
+          header_key1: "headerValue1"
+          header_key2: "headerValue2"
+      - key: "key2"
+        value: "value2"
+        headers:
+          header_key3: "headerValue3"
+          header_key4: "headerValue4"
+  - type: FETCH
+    target: KAFKA
+    topic: topic1
+    messages:
+      - key: "key1"
+        value: "value1"
+        headers:
+          header_key1: "headerValue1"
+          header_key2: "headerValue2"
+      - key: "key2"
+        value: "value2"
+        headers:
+          header_key3: "headerValue3"
+          header_key4: "headerValue4"
+  - type: FETCH
+    target: GATEWAY
+    topic: topic1
+    messages:
+      - key: "key1"
+        value: "value1"
+        headers:
+          header_key1: "headerValue1"
+          header_key2: "headerValue2"
+      - key: "key2"
+        value: "value2"
+        headers:
+          header_key3: "headerValue3"
+          header_key4: "headerValue4"

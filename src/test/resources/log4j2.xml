@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration status="error">
+    <appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="%d{yyyy-MM-dd HH:mm:ss} [%red{%10.25t}] [%green{%-5p}] [%blue{%c{1}:%L}] - %m%n"/>
+        </Console>
+    </appenders>
+
+    <loggers>
+        <logger name="io.conduktor" level="debug" additivity="false">
+            <appender-ref ref="Console"/>
+        </logger>
+        <logger name="org.testcontainers" level="error" additivity="false">
+            <appender-ref ref="Console"/>
+        </logger>
+        <logger name="org.apache.kafka" level="error" additivity="false">
+            <appender-ref ref="Console"/>
+        </logger>
+
+        <root level="error">
+            <appender-ref ref="Console"/>
+        </root>
+    </loggers>
+</configuration>

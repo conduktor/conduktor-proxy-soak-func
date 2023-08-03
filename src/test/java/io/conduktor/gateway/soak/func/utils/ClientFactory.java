@@ -5,8 +5,10 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
 import java.util.*;
@@ -15,87 +17,49 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ClientFactory implements Closeable {
 
-    public Properties gatewayProperties;
     private final List<AutoCloseable> closeables;
-    public Properties kafkaProperties;
-    public String tenant;
 
-    public static ClientFactory generateClientFactory(String clientId, Map<String, String> properties) {
-
-        return new ClientFactory(getGatewayProperties(clientId, properties), getKafkaProperties());
+    public ClientFactory() {
+        this.closeables = new ArrayList<>();
     }
 
-    private static Properties getGatewayProperties(String clientId, Map<String, String> properties) {
-        Properties clientProperties = new Properties();
-        clientProperties.put("bootstrap.servers", "localhost:6969");
-        clientProperties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-        clientProperties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-        clientProperties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-        clientProperties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-        clientProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        clientProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        clientProperties.put("client.id", clientId);
+    private static final String SECURITY_PROTOCOL_CONFIG = "security.protocol";
+
+    public AdminClient gatewayAdmin(Map<String, String> properties) {
+        var gatewayProperties = getDefaultGatewayProperties(properties);
         if (Objects.nonNull(properties)) {
-            clientProperties.putAll(properties);
+            gatewayProperties.putAll(properties);
         }
-        return clientProperties;
+        var admin = AdminClient.create(gatewayProperties);
+        closeables.add(admin);
+        return admin;
     }
 
-    private static Properties getKafkaProperties() {
-        Properties clientProperties = new Properties();
-        clientProperties.put("bootstrap.servers", "localhost:29092");
-        return clientProperties;
+    @NotNull
+    private static Properties getDefaultGatewayProperties(Map<String, String> properties) {
+        var gatewayProperties = new Properties();
+        gatewayProperties.put("bootstrap.servers", "localhost:6969");
+        gatewayProperties.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        gatewayProperties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        gatewayProperties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        gatewayProperties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        gatewayProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        gatewayProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        gatewayProperties.put("client.id", "clientId");
+        if (Objects.nonNull(properties)) {
+            gatewayProperties.putAll(properties);
+            if (properties.containsKey(SECURITY_PROTOCOL_CONFIG)) {
+                if (properties.get(SECURITY_PROTOCOL_CONFIG).equals(SecurityProtocol.SASL_SSL.name())) {
+                    properties.put("ssl.truststore.location", "config/tls/sasl-ssl/truststore.jks");
+                    properties.put("ssl.truststore.password", "changeit");
+                } else if (properties.get(SECURITY_PROTOCOL_CONFIG).equals(SecurityProtocol.SSL.name())) {
+                    properties.put("ssl.truststore.location", "config/tls/ssl/truststore.jks");
+                    properties.put("ssl.truststore.password", "changeit");
+                }
+            }
+        }
+        return gatewayProperties;
     }
-
-    public ClientFactory(Properties gatewayProperties, Properties kafkaProperties) {
-        this.closeables = new ArrayList<>();
-        this.gatewayProperties = gatewayProperties;
-        this.kafkaProperties = kafkaProperties;
-    }
-
-    public ClientFactory(Properties gatewayProperties, Properties kafkaProperties, String tenant) {
-        this.closeables = new ArrayList<>();
-        this.gatewayProperties = gatewayProperties;
-        this.kafkaProperties = kafkaProperties;
-        this.tenant = tenant;
-    }
-
-    public AdminClient gatewayAdmin() {
-        var adminClient = AdminClient.create(gatewayProperties);
-        closeables.add(adminClient);
-        return adminClient;
-    }
-
-    public AdminClient kafkaAdmin() {
-        var adminClient = AdminClient.create(kafkaProperties);
-        closeables.add(adminClient);
-        return adminClient;
-    }
-
-    public KafkaProducer<String, String> gatewayProducer() {
-        return producer(gatewayProperties);
-    }
-
-    public void addGatewayPropertyOverride(String name, String value) {
-        gatewayProperties.put(name, value);
-    }
-
-    public KafkaProducer<String, String> kafkaProducer() {
-        return producer(kafkaProperties);
-    }
-
-    public KafkaConsumer<String, String> gatewayConsumer(final String groupId) {
-        return consumer(gatewayProperties, groupId);
-    }
-
-    public KafkaConsumer<String, String> gatewayConsumer(final String groupId, final String groupInstanceId) {
-        return consumer(gatewayProperties, groupId, groupInstanceId);
-    }
-
-    public KafkaConsumer<String, String> kafkaConsumer(final String groupId) {
-        return consumer(kafkaProperties, groupId);
-    }
-
 
     @Override
     public void close() {
@@ -111,14 +75,63 @@ public class ClientFactory implements Closeable {
         }
     }
 
+    @NotNull
+    private static Properties getDefaultKafkaProperties() {
+        var kafkaProperties = new Properties();
+        kafkaProperties.put("bootstrap.servers", "localhost:29092");
+        return kafkaProperties;
+    }
+
+    public AdminClient kafkaAdmin(Map<String, String> properties) {
+        var kafkaProperties = getDefaultKafkaProperties();
+        if (Objects.nonNull(properties)) {
+            kafkaProperties.putAll(properties);
+        }
+        var admin = AdminClient.create(kafkaProperties);
+        closeables.add(admin);
+        return AdminClient.create(kafkaProperties);
+    }
+
+    public KafkaProducer<String, String> gatewayProducer(Map<String, String> properties) {
+        var gatewayProperties = getDefaultGatewayProperties(properties);
+        if (Objects.nonNull(properties)) {
+            gatewayProperties.putAll(properties);
+        }
+        return producer(gatewayProperties);
+    }
+
+    public KafkaProducer<String, String> kafkaProducer(Map<String, String> properties) {
+        var kafkaProperties = getDefaultKafkaProperties();
+        if (Objects.nonNull(properties)) {
+            kafkaProperties.putAll(properties);
+        }
+        return producer(kafkaProperties);
+    }
+
+    public KafkaConsumer<String, String> gatewayConsumer(final String groupId, Map<String, String> properties) {
+        var gatewayProperties = getDefaultGatewayProperties(properties);
+        if (Objects.nonNull(properties)) {
+            gatewayProperties.putAll(properties);
+        }
+        return consumer(gatewayProperties, groupId);
+    }
+
+    public KafkaConsumer<String, String> kafkaConsumer(final String groupId, Map<String, String> properties) {
+        var kafkaProperties = getDefaultKafkaProperties();
+        if (Objects.nonNull(properties)) {
+            kafkaProperties.putAll(properties);
+        }
+        return consumer(kafkaProperties, groupId);
+    }
+
     private KafkaProducer<String, String> producer(Properties producerProperties) {
-        var producer = new KafkaProducer<String, String>(producerProperties, new StringSerializer(), new StringSerializer());
+        var producer = new KafkaProducer<>(producerProperties, new StringSerializer(), new StringSerializer());
         closeables.add(producer);
         return producer;
     }
 
     private KafkaConsumer<String, String> consumer(Properties consumerProperties, final String groupId) {
-        final Map<String, Object> configs = new HashMap<String, Object>() {{
+        final Map<String, Object> configs = new HashMap<>() {{
             put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
             put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
             put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
@@ -137,18 +150,7 @@ public class ClientFactory implements Closeable {
     }
 
 
-    private KafkaConsumer<String, String> consumer(Properties consumerProperties, final String groupId, final String groupInstanceId) {
-        final Map<String, Object> configs = new HashMap<String, Object>() {{
-            put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-            put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, groupInstanceId);
-            put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-            put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        }};
-        return consumer(consumerProperties, configs);
-    }
-
-
-    private void dumpConfig(final String type, final Map<String, Object> config) {
+    private static void dumpConfig(final String type, final Map<String, Object> config) {
         log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
     }
 

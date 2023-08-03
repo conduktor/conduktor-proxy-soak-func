@@ -4,26 +4,28 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import org.apache.kafka.common.protocol.ApiKeys;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 
 @Data
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class Scenario {
-    private Service kafka;
-    private Service gateway;
-    private LinkedHashMap<String, PluginRequest> plugins;
-    private IO io;
-
+    private String title;
+    private Docker docker;
+    private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins;
+    private LinkedList<Action> actions;
 
     @Data
     @ToString
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Kafka {
-        private LinkedHashMap<String, LinkedHashMap<String, String>> cases;
+    public static class Docker {
+        private Service kafka;
+        private Service gateway;
     }
 
     @Data
@@ -40,20 +42,33 @@ public class Scenario {
     @ToString
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class IO {
-        private Record input;
-        private Record kafka;
-        private Record output;
+    public static class Action {
+        private ActionType type;
+        private ActionTarget target;
+        private LinkedHashMap<String, String> properties;
+        private String topic;
+        private LinkedList<Message> messages;
     }
 
     @Data
     @ToString
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Record {
+    public static class Message {
         private LinkedHashMap<String, String> headers;
         private String key;
         private String value;
+    }
+
+    public enum ActionType {
+        CREATE_TOPIC,
+        PRODUCE,
+        FETCH
+    }
+
+    public enum ActionTarget {
+        KAFKA,
+        GATEWAY
     }
 }
 

@@ -1,6 +1,5 @@
 package io.conduktor.gateway.soak.func;
 
-import com.auth0.jwt.JWT;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.Scenario;
 import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
@@ -8,9 +7,10 @@ import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
 import io.restassured.http.ContentType;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.assertj.core.api.Assertions;
@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeContainerUtils.startContainer;
@@ -38,7 +37,6 @@ public class ScenarioTest {
     private static final String ADMIN_USER = "admin";
     private static final String ADMIN_PASSWORD = "conduktor";
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
-    public static final String PASS_THROUGH_TENANT = "passThroughTenant";
     private static List<Arguments> scenarios;
 
     @BeforeAll
@@ -72,64 +70,121 @@ public class ScenarioTest {
 
     @ParameterizedTest
     @MethodSource("sourceForScenario")
-    public void testScenario(Scenario scenario) throws IOException, InterruptedException, ExecutionException {
-        log.info("Start to test scenario: {}", scenario);
-        var kafka = scenario.getKafka();
-        var gateway = scenario.getGateway();
-        var plugins = scenario.getPlugins();
-        var gatewayInput = scenario.getIo().getInput();
-        var kafkaOutput = scenario.getIo().getKafka();
-        var gatewayOutput = scenario.getIo().getOutput();
+    public void testScenario(Scenario scenario) {
+        try {
+            log.info("Start to test: {}", scenario.getTitle());
+            var kafka = scenario.getDocker().getKafka();
+            var gateway = scenario.getDocker().getGateway();
+            var plugins = scenario.getPlugins();
+            var actions = scenario.getActions();
 
-        // Start container
-        startContainer(kafka, gateway);
+            // Start container
+            startContainer(kafka, gateway);
 
-        // Extract tenant if it presents
-        String tenant = getTenant(gateway.getProperties());
+            // Configure plugins
+            if (Objects.nonNull(plugins)) {
+                configurePlugins(plugins);
+            }
 
-        // Configure plugins
-        if (Objects.nonNull(plugins) && StringUtils.isNotEmpty(tenant)) {
-            configurePlugins(plugins, tenant);
+            // Perform actions
+            for (var action : actions) {
+                var type = action.getType();
+                var target = action.getTarget();
+                var properties = action.getProperties();
+                var topic = action.getTopic();
+                var messages = action.getMessages();
+                var clientFactory = new ClientFactory();
+                //TODO: refactor it to look better
+                switch (type) {
+                    case CREATE_TOPIC -> {
+                        switch (target) {
+                            case KAFKA -> {
+                                try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                                    createTopic(topic, kafkaAdminClient);
+                                }
+                            }
+                            case GATEWAY -> {
+                                try (var gatewayAdminClient = clientFactory.gatewayAdmin(properties)) {
+                                    createTopic(topic, gatewayAdminClient);
+                                }
+                            }
+                        }
+                    }
+                    case PRODUCE -> {
+                        switch (target) {
+                            case KAFKA -> {
+                                try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
+                                    produce(topic, messages, kafkaProducer);
+                                }
+                            }
+                            case GATEWAY -> {
+                                try (var producer = clientFactory.gatewayProducer(properties)) {
+                                    produce(topic, messages, producer);
+                                }
+                            }
+                        }
+                    }
+                    case FETCH -> {
+                        switch (target) {
+                            case KAFKA -> {
+                                try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
+                                    consumeAndEvaluate(topic, messages, consumer);
+                                }
+                            }
+                            case GATEWAY -> {
+                                try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
+                                    consumeAndEvaluate(topic, messages, consumer);
+                                }
+                            }
+                        }
+                    }
+                }
+                clientFactory.close();
+            }
+        } catch (Exception e) {
+            log.error("Test failed", e);
+            throw new RuntimeException(e.getMessage());
+        } finally {
+            stopContainer();
         }
+    }
 
-        var clientFactory = ClientFactory.generateClientFactory(this.getClass().getName(), gateway.getProperties());
-        var topic = UUID.randomUUID().toString();
-        // Create topic
-        try (var adminClient = clientFactory.gatewayAdmin()) {
-            KafkaActionUtils.createTopic(adminClient, topic, 1, (short) 1, Map.of(), 10);
-        }
+    private static void createTopic(String topic, AdminClient kafkaAdminClient) throws InterruptedException {
+        KafkaActionUtils.createTopic(kafkaAdminClient, topic, 1, (short) 1, Map.of(), 10);
+    }
 
-        // Produce input into topic
-        var inputHeaders = new ArrayList<Header>();
-        try (var producer = clientFactory.gatewayProducer()) {
-            for (var header : gatewayInput.getHeaders().entrySet()) {
+    private static void produce(String topic, LinkedList<Scenario.Message> messages, KafkaProducer<String, String> producer) throws ExecutionException, InterruptedException {
+        for (var message : messages) {
+            var inputHeaders = new ArrayList<Header>();
+            for (var header : message.getHeaders().entrySet()) {
                 inputHeaders.add(new RecordHeader(header.getKey(), header.getValue().getBytes()));
             }
-            KafkaActionUtils.produce(producer, topic, gatewayInput.getKey(), gatewayInput.getValue(), inputHeaders);
+            KafkaActionUtils.produce(producer, topic, message.getKey(), message.getValue(), inputHeaders);
         }
+    }
 
-        // Fetch message from real kafka
-        try (var consumer = clientFactory.kafkaConsumer("someGroup")) {
-            var records = KafkaActionUtils.consume(consumer, tenant + topic, 1);
-            assertRecord(kafkaOutput, records);
+    private static void consumeAndEvaluate(String topic, LinkedList<Scenario.Message> messages, KafkaConsumer<String, String> consumer) {
+        var records = KafkaActionUtils.consume(consumer, topic, messages.size());
+        Assertions.assertThat(records.size()).isEqualTo(messages.size());
+        int i = 0;
+        for (var message : messages) {
+            var record = records.get(i++);
+            assertRecord(message, record);
         }
+    }
 
-        // Fetch message from gateway
-        try (var consumer = clientFactory.gatewayConsumer("groupId")) {
-            var records = KafkaActionUtils.consume(consumer, topic, 1);
-            assertRecord(gatewayOutput, records);
+    private static void configurePlugins(LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
+        for (var plugin : plugins.entrySet()) {
+            var tenant = plugin.getKey();
+            configurePlugins(plugin.getValue(), tenant);
         }
-
-        // Stop container
-        clientFactory.close();
-        stopContainer();
     }
 
     private static void configurePlugins(LinkedHashMap<String, PluginRequest> plugins, String tenant) {
         for (var plugin : plugins.entrySet()) {
             var pluginName = plugin.getKey();
             var pluginBody = plugin.getValue();
-            var response = given()
+            given()
                     .baseUri("http://localhost:8888/admin/interceptors/v1")
                     .auth()
                     .basic(ADMIN_USER, ADMIN_PASSWORD)
@@ -141,12 +196,10 @@ public class ScenarioTest {
                     .statusCode(200)
                     .extract()
                     .response();
-            System.out.println(response);
         }
     }
 
-    private static void assertRecord(Scenario.Record output, List<ConsumerRecord<String, String>> records) {
-        var record = records.iterator().next();
+    private static void assertRecord(Scenario.Message output, ConsumerRecord<String, String> record) {
         Assertions.assertThat(record.key()).isEqualTo(output.getKey());
         Assertions.assertThat(record.value()).isEqualTo(output.getValue());
         if (Objects.nonNull(output.getHeaders())) {
@@ -156,23 +209,6 @@ public class ScenarioTest {
                 Assertions.assertThat(record.headers()).contains(header);
             }
         }
-    }
-
-    private static String getTenant(Map<String, String> gatewayProperties) {
-        if (Objects.nonNull(gatewayProperties) && gatewayProperties.containsKey(SaslConfigs.SASL_JAAS_CONFIG)) {
-            String property = gatewayProperties.get(SaslConfigs.SASL_JAAS_CONFIG);
-            // Regular expression pattern to match the password
-            var pattern = Pattern.compile("password=\\\"([^\"]+)\\\"");
-            var matcher = pattern.matcher(property);
-            if (matcher.find()) {
-                var rawPassword = matcher.group(1);
-                var decodedPassword = JWT.decode(rawPassword);
-                if (Objects.nonNull(decodedPassword.getClaim("tenant"))) {
-                    return decodedPassword.getClaim("tenant").asString();
-                }
-            }
-        }
-        return PASS_THROUGH_TENANT;
     }
 
 

@@ -4,12 +4,12 @@ services:
     image: confluentinc/cp-zookeeper:${CP_VERSION}
     hostname: zookeeper
     ports:
-      - "2181:2181"
+      - "2801:2801"
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_CLIENT_PORT: 2801
       ZOOKEEPER_TICK_TIME: 2000
     healthcheck:
-      test: nc -zv zookeeper 2181 || exit 1
+      test: nc -zv zookeeper 2801 || exit 1
       interval: 5s
       retries: 25
 
@@ -22,7 +22,7 @@ services:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
       KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:9092,EXTERNAL_SAME_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
@@ -49,7 +49,7 @@ services:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
       KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29093,INTERNAL://:9093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9093,EXTERNAL_SAME_HOST://localhost:29093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
@@ -74,11 +74,6 @@ services:
       - kafka1
     ports:
       - "8081:8081"
-    volumes:
-      - type: bind
-        source: "./config/clientConfig"
-        target: /config/clientConfig
-        read_only: true
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:9092
@@ -101,18 +96,14 @@ services:
       - "9999:9999"
       - "8888:8888"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092
-      SSL_KEY_PASSWORD: changeit
-      SSL_KEY_STORE_PASSWORD: changeit
-      SSL_KEY_TYPE: pkcs12
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092, kafka2:9093
+      GATEWAY_SSL_KEY_PASSWORD: changeit
+      GATEWAY_SSL_KEY_STORE_PASSWORD: changeit
+      GATEWAY_SSL_KEY_TYPE: pkcs12
       PROXY_HOST: localhost
       SCHEMA_REGISTRY_HOST: http://schema-registry:8081
-      INTERCEPTOR_CONFIG_LOCATION: "~"
-      FEATURE_FLAGS_JWT_TOKEN_ENDPOINT: "true"
-      FEATURE_FLAGS_PASS_THROUGH: "false"
-    #      AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
-    #      SSL_KEY_STORE_PATH: ./config/tls/sasl-ssl/keystore.jks
-    #      SSL_KEY_STORE_PATH: ./config/tls/ssl/keystore.jks
+      GATEWAY_INTERCEPTOR_CONFIG_LOCATION: "~"
+      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "true"
     volumes:
       - type: bind
         source: "./config/tls"
@@ -122,30 +113,3 @@ services:
       test: curl localhost:8888/health
       interval: 5s
       retries: 25
-#
-#  ksqldb-server:
-#    image: confluentinc/cp-ksqldb-server:latest
-#    hostname: ksqldb-server
-#    container_name: ksqldb-server
-#    depends_on:
-#      - conduktor-gateway
-#    ports:
-#      - "8088:8088"
-#    environment:
-#      KSQL_LISTENERS: http://0.0.0.0:8088
-#      KSQL_BOOTSTRAP_SERVERS: conduktor-gateway:6969
-#      KSQL_HOST_NAME: ksqldb-server
-#      KSQL_SECURITY_PROTOCOL: SASL_PLAINTEXT
-#      KSQL_SASL_MECHANISM: PLAIN
-#      KSQL_SASL_JAAS_CONFIG: |
-#        org.apache.kafka.common.security.plain.PlainLoginModule \
-#        required username="someTenant" \
-#        password="eyJhbGciOiJIUzUxMiJ9.eyJ1c2VybmFtZSI6InByb3h5IiwidGVuYW50IjoicHJveHkiLCJleHAiOjE2OTY0MTA3MDh9.fWY9wImpYWqqc-oYN__An_6mbTmZko8sVeF8GEfTFXcpd1jNm09PYkqvOeh-N5411S_nDMmWjtRceYWNpeeY1A";
-#
-#  ksqldb-cli:
-#    image: confluentinc/cp-ksqldb-cli:latest
-#    container_name: ksqldb-cli
-#    depends_on:
-#      - ksqldb-server
-#    entrypoint: /bin/sh
-#    tty: true

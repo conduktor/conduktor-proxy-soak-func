@@ -1,28 +1,64 @@
-kafka:
-  version: latest
-  environment:
-    KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
-gateway:
-  version: 2.0.0.5
-  environment:
-    AUTHENTICATION_AUTHENTICATOR_TYPE: NONE
-plugins:
-io:
-  input:
-    key: "key2"
-    value: "value2"
-    headers:
-      header_key3: "headerValue3"
-      header_key4: "headerValue4"
+title: Simple test with SASL_PLAINTEXT and Dynamic Header Injection
+docker:
   kafka:
-    key: "key2"
-    value: "value2"
-    headers:
-      header_key3: "headerValue3"
-      header_key4: "headerValue4"
-  output:
-    key: "key2"
-    value: "value2"
-    headers:
-      header_key3: "headerValue3"
-      header_key4: "headerValue4"
+    version: latest
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+  gateway:
+    version: 2.0.0.alpha
+    environment:
+      GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+plugins:
+  franklx:
+    inject-header-1:
+      pluginClass: "io.conduktor.gateway.interceptor.DynamicHeaderInjectionPlugin"
+      "priority": 100
+      "config":
+        "topic": ".*"
+        "headers":
+          "X-USERNAME": "{{user}} for SASL_PLAINTEXT"
+actions:
+  - type: CREATE_TOPIC
+    target: GATEWAY
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+    topic: topic1
+  - type: PRODUCE
+    target: GATEWAY
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+    topic: topic1
+    messages:
+      - key: "key3"
+        value: "value3"
+        headers:
+          header_key1: "headerValue5"
+          header_key2: "headerValue5"
+  - type: FETCH
+    target: KAFKA
+    topic: franklxtopic1
+    messages:
+      - key: "key3"
+        value: "value3"
+        headers:
+          header_key1: "headerValue5"
+          header_key2: "headerValue5"
+          X-USERNAME: "franklx for SASL_PLAINTEXT"
+  - type: FETCH
+    target: GATEWAY
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+    topic: topic1
+    messages:
+      - key: "key3"
+        value: "value3"
+        headers:
+          header_key1: "headerValue5"
+          header_key2: "headerValue5"
+          X-USERNAME: "franklx for SASL_PLAINTEXT"
