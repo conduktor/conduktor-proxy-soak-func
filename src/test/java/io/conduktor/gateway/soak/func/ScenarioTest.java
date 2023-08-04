@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,84 +69,82 @@ public class ScenarioTest {
         return scenarios.stream();
     }
 
+    @AfterEach
+    void cleanup() {
+        stopContainer();
+    }
+
     @ParameterizedTest
     @MethodSource("sourceForScenario")
-    public void testScenario(Scenario scenario) {
-        try {
-            log.info("Start to test: {}", scenario.getTitle());
-            var kafka = scenario.getDocker().getKafka();
-            var gateway = scenario.getDocker().getGateway();
-            var plugins = scenario.getPlugins();
-            var actions = scenario.getActions();
+    public void testScenario(Scenario scenario) throws IOException, InterruptedException, ExecutionException {
+        log.info("Start to test: {}", scenario.getTitle());
+        var kafka = scenario.getDocker().getKafka();
+        var gateway = scenario.getDocker().getGateway();
+        var plugins = scenario.getPlugins();
+        var actions = scenario.getActions();
 
-            // Start container
-            startContainer(kafka, gateway);
+        // Start container
+        startContainer(kafka, gateway);
 
-            // Configure plugins
-            if (Objects.nonNull(plugins)) {
-                configurePlugins(plugins);
-            }
+        // Configure plugins
+        if (Objects.nonNull(plugins)) {
+            configurePlugins(plugins);
+        }
 
-            // Perform actions
-            for (var action : actions) {
-                var type = action.getType();
-                var target = action.getTarget();
-                var properties = action.getProperties();
-                var topic = action.getTopic();
-                var messages = action.getMessages();
-                var clientFactory = new ClientFactory();
-                //TODO: refactor it to look better
-                switch (type) {
-                    case CREATE_TOPIC -> {
-                        switch (target) {
-                            case KAFKA -> {
-                                try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                                    createTopic(topic, kafkaAdminClient);
-                                }
-                            }
-                            case GATEWAY -> {
-                                try (var gatewayAdminClient = clientFactory.gatewayAdmin(properties)) {
-                                    createTopic(topic, gatewayAdminClient);
-                                }
+        // Perform actions
+        for (var action : actions) {
+            var type = action.getType();
+            var target = action.getTarget();
+            var properties = action.getProperties();
+            var topic = action.getTopic();
+            var messages = action.getMessages();
+            var clientFactory = new ClientFactory();
+            //TODO: refactor it to look better
+            switch (type) {
+                case CREATE_TOPIC -> {
+                    switch (target) {
+                        case KAFKA -> {
+                            try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                                createTopic(topic, kafkaAdminClient);
                             }
                         }
-                    }
-                    case PRODUCE -> {
-                        switch (target) {
-                            case KAFKA -> {
-                                try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
-                                    produce(topic, messages, kafkaProducer);
-                                }
-                            }
-                            case GATEWAY -> {
-                                try (var producer = clientFactory.gatewayProducer(properties)) {
-                                    produce(topic, messages, producer);
-                                }
-                            }
-                        }
-                    }
-                    case FETCH -> {
-                        switch (target) {
-                            case KAFKA -> {
-                                try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
-                                    consumeAndEvaluate(topic, messages, consumer);
-                                }
-                            }
-                            case GATEWAY -> {
-                                try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
-                                    consumeAndEvaluate(topic, messages, consumer);
-                                }
+                        case GATEWAY -> {
+                            try (var gatewayAdminClient = clientFactory.gatewayAdmin(properties)) {
+                                createTopic(topic, gatewayAdminClient);
                             }
                         }
                     }
                 }
-                clientFactory.close();
+                case PRODUCE -> {
+                    switch (target) {
+                        case KAFKA -> {
+                            try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
+                                produce(topic, messages, kafkaProducer);
+                            }
+                        }
+                        case GATEWAY -> {
+                            try (var producer = clientFactory.gatewayProducer(properties)) {
+                                produce(topic, messages, producer);
+                            }
+                        }
+                    }
+                }
+                case FETCH -> {
+                    switch (target) {
+                        case KAFKA -> {
+                            try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
+                                consumeAndEvaluate(topic, messages, consumer);
+                            }
+                        }
+                        case GATEWAY -> {
+                            try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
+                                consumeAndEvaluate(topic, messages, consumer);
+                            }
+                        }
+                    }
+                }
             }
-        } catch (Exception e) {
-            log.error("Test failed", e);
-            throw new RuntimeException(e.getMessage());
-        } finally {
-            stopContainer();
+            clientFactory.close();
         }
     }
 
