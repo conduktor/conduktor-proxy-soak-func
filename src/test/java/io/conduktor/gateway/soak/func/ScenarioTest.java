@@ -190,7 +190,7 @@ public class ScenarioTest {
                     .body(pluginBody)
                     .contentType(ContentType.JSON)
                     .when()
-                    .post("/tenants/{tenant}/interceptors/{pluginName}", tenant, pluginName)
+                    .post("/vcluster/{tenant}/interceptor/{pluginName}", tenant, pluginName)
                     .then()
                     .statusCode(200)
                     .extract()

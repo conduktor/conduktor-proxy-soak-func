@@ -83,7 +83,7 @@ services:
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
   conduktor-gateway:
-    image: ghcr.io/conduktor/conduktor-proxy:${GATEWAY_VERSION}
+    image: conduktor/conduktor-gateway:${GATEWAY_VERSION}
     hostname: conduktor-gateway
     depends_on:
       kafka1:
@@ -100,7 +100,7 @@ services:
       GATEWAY_SSL_KEY_PASSWORD: changeit
       GATEWAY_SSL_KEY_STORE_PASSWORD: changeit
       GATEWAY_SSL_KEY_TYPE: pkcs12
-      PROXY_HOST: localhost
+      GATEWAY_HOST: localhost
       SCHEMA_REGISTRY_HOST: http://schema-registry:8081
       GATEWAY_INTERCEPTOR_CONFIG_LOCATION: "~"
       GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "true"

@@ -14,7 +14,7 @@ docker:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
   gateway:
-    version: 2.0.0.alpha
+    version: 2.0.0-amd64
     environment:
       GATEWAY_SECURITY_PROTOCOL: SASL_SSL
 plugins:
@@ -39,14 +39,14 @@ actions:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
   - type: PRODUCE
     target: GATEWAY
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
       - key: "key3"
@@ -70,7 +70,7 @@ actions:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
       - key: "key3"
@@ -101,7 +101,7 @@ docker:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
   gateway:
-    version: 2.0.0.alpha
+    version: 2.0.0-amd64
     environment:
       GATEWAY_SECURITY_PROTOCOL: SASL_SSL
 ```
@@ -149,7 +149,7 @@ These actions include:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
 ```
 
@@ -161,7 +161,7 @@ These actions include:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
       - key: "key3"
@@ -196,7 +196,7 @@ These actions include:
     properties:
       security.protocol: SASL_SSL
       sasl.mechanism: PLAIN
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ0ZW5hbnQiOiJmcmFua2x4IiwiZXhwIjoxMTY5MDkwOTQ1Nn0.eDsobtVTFg2Rciy-y7x7GxqdzuEb9ZStWih9P9VuSzE\";"
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
       - key: "key3"

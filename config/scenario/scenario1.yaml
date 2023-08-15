@@ -5,7 +5,7 @@ docker:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
   gateway:
-    version: 2.0.0.alpha
+    version: 2.0.0-amd64
     environment:
       GATEWAY_SECURITY_PROTOCOL: NONE
       GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "false"
