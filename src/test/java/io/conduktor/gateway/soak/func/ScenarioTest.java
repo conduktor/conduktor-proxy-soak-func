@@ -199,8 +199,8 @@ public class ScenarioTest {
     }
 
     private static void assertRecord(Scenario.Message output, ConsumerRecord<String, String> record) {
-        Assertions.assertThat(record.key()).isEqualTo(output.getKey());
-        Assertions.assertThat(record.value()).isEqualTo(output.getValue());
+        Assertions.assertThat(record.key()).matches(output.getKey());
+        Assertions.assertThat(record.value()).matches(output.getValue());
         if (Objects.nonNull(output.getHeaders())) {
             Assertions.assertThat(record.headers()).hasSize(output.getHeaders().size());
             for (var outputHeader : output.getHeaders().entrySet()) {
