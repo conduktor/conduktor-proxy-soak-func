@@ -3,14 +3,11 @@ package io.conduktor.gateway.soak.func.config;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
-import org.apache.kafka.common.protocol.ApiKeys;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 
 @Data
-@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class Scenario {
@@ -20,7 +17,6 @@ public class Scenario {
     private LinkedList<Action> actions;
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Docker {
@@ -29,7 +25,6 @@ public class Scenario {
     }
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Service {
@@ -39,7 +34,6 @@ public class Scenario {
     }
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Action {
@@ -48,16 +42,35 @@ public class Scenario {
         private LinkedHashMap<String, String> properties;
         private String topic;
         private LinkedList<Message> messages;
+        private RecordAssertion recordAssertion;
     }
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Message {
         private LinkedHashMap<String, String> headers;
         private String key;
         private String value;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecordAssertion {
+        private String title;
+        private int expectedSize = 1;
+        private LinkedHashMap<String, Assertion> headers;
+        private Assertion key;
+        private Assertion value;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Assertion {
+        private String assertThat = "isEqualTo";
+        private Object expected;
     }
 
     public enum ActionType {
