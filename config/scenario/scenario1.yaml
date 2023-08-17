@@ -52,7 +52,7 @@ actions:
   - type: FETCH
     target: GATEWAY
     topic: topic1
-    messages:
+    assertions:
       - key:
           expected: "key1"
         value:
