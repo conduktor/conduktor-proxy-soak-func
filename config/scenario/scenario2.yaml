@@ -42,12 +42,17 @@ actions:
     target: KAFKA
     topic: franklxtopic1
     messages:
-      - key: "key3"
-        value: "value3"
+      - key:
+          expected: "key3"
+        value:
+          expected: "value3"
         headers:
-          header_key1: "headerValue5"
-          header_key2: "headerValue5"
-          X-USERNAME: "franklx for SASL_PLAINTEXT"
+          header_key1:
+            expected: "headerValue5"
+          header_key2:
+            expected: "headerValue5"
+          X-USERNAME:
+            expected: "franklx for SASL_PLAINTEXT"
   - type: FETCH
     target: GATEWAY
     properties:
@@ -56,9 +61,14 @@ actions:
       sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
-      - key: "key3"
-        value: "value3"
+      - key:
+          expected: "key3"
+        value:
+          expected: "value3"
         headers:
-          header_key1: "headerValue5"
-          header_key2: "headerValue5"
-          X-USERNAME: "franklx for SASL_PLAINTEXT"
+          header_key1:
+            expected: "headerValue5"
+          header_key2:
+            expected: "headerValue5"
+          X-USERNAME:
+            expected: "franklx for SASL_PLAINTEXT"

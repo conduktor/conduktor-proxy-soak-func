@@ -30,28 +30,44 @@ actions:
   - type: FETCH
     target: KAFKA
     topic: topic1
-    messages:
-      - key: "key1"
-        value: "value1"
+    assertions:
+      - key:
+          expected: "key1"
+        value:
+          expected: "value1"
         headers:
-          header_key1: "headerValue1"
-          header_key2: "headerValue2"
-      - key: "key2"
-        value: "value2"
+          header_key1:
+            expected: "headerValue1"
+          header_key2:
+            expected: "headerValue2"
+      - key:
+          expected: "key2"
+        value:
+          expected: "value2"
         headers:
-          header_key3: "headerValue3"
-          header_key4: "headerValue4"
+          header_key3:
+            expected: "headerValue3"
+          header_key4:
+            expected: "headerValue4"
   - type: FETCH
     target: GATEWAY
     topic: topic1
     messages:
-      - key: "key1"
-        value: "value1"
+      - key:
+          expected: "key1"
+        value:
+          expected: "value1"
         headers:
-          header_key1: "headerValue1"
-          header_key2: "headerValue2"
-      - key: "key2"
-        value: "value2"
+          header_key1:
+            expected: "headerValue1"
+          header_key2:
+            expected: "headerValue2"
+      - key:
+          expected: "key2"
+        value:
+          expected: "value2"
         headers:
-          header_key3: "headerValue3"
-          header_key4: "headerValue4"
+          header_key3:
+            expected: "headerValue3"
+          header_key4:
+            expected: "headerValue4"

@@ -42,7 +42,7 @@ public class Scenario {
         private LinkedHashMap<String, String> properties;
         private String topic;
         private LinkedList<Message> messages;
-        private RecordAssertion recordAssertion;
+        private LinkedList<RecordAssertion> assertions;
     }
 
     @Data
@@ -58,8 +58,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RecordAssertion {
-        private String title;
-        private int expectedSize = 1;
+        private String description;
         private LinkedHashMap<String, Assertion> headers;
         private Assertion key;
         private Assertion value;
@@ -69,7 +68,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Assertion {
-        private String assertThat = "isEqualTo";
+        private String operator = "isEqualTo";
         private Object expected;
     }
 

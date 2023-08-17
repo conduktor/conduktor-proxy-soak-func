@@ -66,10 +66,8 @@ public class ScenarioTest {
                 var configReader = YamlConfigReader.forType(Scenario.class);
                 for (var file : files) {
                     if (file.isFile() && file.getName().toLowerCase().endsWith(".yaml")) {
-                        if (file.getName().contains("scenario-encryption.yaml")) {
-                            var scenario = configReader.readYamlInResources(file.getPath());
-                            scenarios.add(Arguments.of(scenario));
-                        }
+                        var scenario = configReader.readYamlInResources(file.getPath());
+                        scenarios.add(Arguments.of(scenario));
                     }
                 }
             }
@@ -112,7 +110,7 @@ public class ScenarioTest {
             var topic = action.getTopic();
             var messages = action.getMessages();
             var clientFactory = new ClientFactory();
-            var recordAssertion = action.getRecordAssertion();
+            var recordAssertions = action.getAssertions();
 
             //TODO: refactor it to look better
             switch (type) {
@@ -148,12 +146,12 @@ public class ScenarioTest {
                     switch (target) {
                         case KAFKA -> {
                             try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, recordAssertion);
+                                consumeAndEvaluate(topic, consumer, recordAssertions);
                             }
                         }
                         case GATEWAY -> {
                             try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, recordAssertion);
+                                consumeAndEvaluate(topic, consumer, recordAssertions);
                             }
                         }
                     }
@@ -179,11 +177,14 @@ public class ScenarioTest {
         }
     }
 
-    private static void consumeAndEvaluate(String topic, KafkaConsumer<String, String> consumer, Scenario.RecordAssertion recordAssertion) {
-        var records = KafkaActionUtils.consume(consumer, topic, recordAssertion.getExpectedSize());
-        assertThat(records.size()).isEqualTo(recordAssertion.getExpectedSize());
+    private static void consumeAndEvaluate(String topic, KafkaConsumer<String, String> consumer, List<Scenario.RecordAssertion> recordAssertions) {
+        var records = KafkaActionUtils.consume(consumer, topic, recordAssertions.size());
+        assertThat(records.size()).isEqualTo(recordAssertions.size());
+        var i = 0;
         for (var record : records) {
-            assertRecord(record, recordAssertion);
+            var assertion = recordAssertions.get(i++);
+            log.info("Test: " + assertion.getDescription());
+            assertRecord(record, assertion);
         }
     }
 
@@ -214,7 +215,6 @@ public class ScenarioTest {
     }
 
     private static void assertRecord(ConsumerRecord<String, String> record, Scenario.RecordAssertion recordAssertion) {
-        log.info("Start test: " + recordAssertion.getTitle());
         assertData(record.key(), recordAssertion.getKey());
         assertData(record.value(), recordAssertion.getValue());
         if (Objects.nonNull(recordAssertion.getHeaders())) {
@@ -226,7 +226,6 @@ public class ScenarioTest {
                 assertData(new String(recordHeaders.get(entry.getKey())), entry.getValue());
             }
         }
-        log.info("Test done: " + recordAssertion.getTitle());
     }
 
     private static void assertData(String data, Scenario.Assertion assertion) {
@@ -234,7 +233,7 @@ public class ScenarioTest {
             return;
         }
         var expected = assertion.getExpected();
-        var assertMethod = assertion.getAssertThat();
+        var assertMethod = assertion.getOperator();
         if (Objects.isNull(expected) || expected instanceof String str && StringUtils.isBlank(str)) {
             return;
         }
