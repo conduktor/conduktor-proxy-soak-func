@@ -183,7 +183,9 @@ public class ScenarioTest {
         var i = 0;
         for (var record : records) {
             var assertion = recordAssertions.get(i++);
-            log.info("Test: " + assertion.getDescription());
+            if (StringUtils.isNotBlank(assertion.getDescription())) {
+                log.info("Test: " + assertion.getDescription());
+            }
             assertRecord(record, assertion);
         }
     }
