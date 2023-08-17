@@ -1,16 +1,16 @@
 package io.conduktor.gateway.soak.func.config;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
-import org.apache.kafka.common.protocol.ApiKeys;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 
 @Data
-@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class Scenario {
@@ -20,7 +20,6 @@ public class Scenario {
     private LinkedList<Action> actions;
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Docker {
@@ -29,7 +28,6 @@ public class Scenario {
     }
 
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Service {
@@ -38,8 +36,16 @@ public class Scenario {
         private LinkedHashMap<String, String> properties;
     }
 
+    @JsonTypeInfo(
+            use = JsonTypeInfo.Id.NAME,
+            property = "type",
+            visible = true)
+    @JsonSubTypes({
+            @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
+            @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
+            @JsonSubTypes.Type(value = Action.class, name = "CREATE_TOPIC")
+    })
     @Data
-    @ToString
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Action {
@@ -47,17 +53,49 @@ public class Scenario {
         private ActionTarget target;
         private LinkedHashMap<String, String> properties;
         private String topic;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class ProduceAction extends Action {
         private LinkedList<Message> messages;
     }
 
     @Data
-    @ToString
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class FetchAction extends Action {
+        private LinkedList<RecordAssertion> assertions;
+    }
+
+    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Message {
         private LinkedHashMap<String, String> headers;
         private String key;
         private String value;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RecordAssertion {
+        private String description;
+        private LinkedHashMap<String, Assertion> headers;
+        private Assertion key;
+        private Assertion value;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Assertion {
+        private String operator = "isEqualTo";
+        private Object expected;
     }
 
     public enum ActionType {
