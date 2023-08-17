@@ -38,7 +38,8 @@ public class Scenario {
 
     @JsonTypeInfo(
             use = JsonTypeInfo.Id.NAME,
-            property = "type")
+            property = "type",
+            visible = true)
     @JsonSubTypes({
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
