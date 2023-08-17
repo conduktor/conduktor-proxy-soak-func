@@ -108,9 +108,7 @@ public class ScenarioTest {
             var target = action.getTarget();
             var properties = action.getProperties();
             var topic = action.getTopic();
-            var messages = action.getMessages();
             var clientFactory = new ClientFactory();
-            var recordAssertions = action.getAssertions();
 
             //TODO: refactor it to look better
             switch (type) {
@@ -129,29 +127,31 @@ public class ScenarioTest {
                     }
                 }
                 case PRODUCE -> {
+                    var produceAction = ((Scenario.ProduceAction) action);
                     switch (target) {
                         case KAFKA -> {
                             try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
-                                produce(topic, messages, kafkaProducer);
+                                produce(topic, produceAction.getMessages(), kafkaProducer);
                             }
                         }
                         case GATEWAY -> {
                             try (var producer = clientFactory.gatewayProducer(properties)) {
-                                produce(topic, messages, producer);
+                                produce(topic, produceAction.getMessages(), producer);
                             }
                         }
                     }
                 }
                 case FETCH -> {
+                    var fetchAction = ((Scenario.FetchAction) action);
                     switch (target) {
                         case KAFKA -> {
                             try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, recordAssertions);
+                                consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
                             }
                         }
                         case GATEWAY -> {
                             try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, recordAssertions);
+                                consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
                             }
                         }
                     }

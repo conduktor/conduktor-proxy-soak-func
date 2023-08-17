@@ -1,7 +1,10 @@
 package io.conduktor.gateway.soak.func.config;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.LinkedHashMap;
@@ -33,6 +36,14 @@ public class Scenario {
         private LinkedHashMap<String, String> properties;
     }
 
+    @JsonTypeInfo(
+            use = JsonTypeInfo.Id.NAME,
+            property = "type")
+    @JsonSubTypes({
+            @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
+            @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
+            @JsonSubTypes.Type(value = Action.class, name = "CREATE_TOPIC")
+    })
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -41,7 +52,21 @@ public class Scenario {
         private ActionTarget target;
         private LinkedHashMap<String, String> properties;
         private String topic;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class ProduceAction extends Action {
         private LinkedList<Message> messages;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class FetchAction extends Action {
         private LinkedList<RecordAssertion> assertions;
     }
 
