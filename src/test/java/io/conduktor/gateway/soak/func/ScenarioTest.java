@@ -10,12 +10,12 @@ import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
 import io.restassured.http.ContentType;
-import io.restassured.response.Response;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.IteratorUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -34,8 +34,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -116,17 +119,14 @@ public class ScenarioTest {
     }
 
     private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int id, Scenario.Action _action) throws InterruptedException, ExecutionException {
-        log.info("[" + id + "] Executing " + _action.getType());
+        log.info("[" + id + "] Executing " + _action.simpleMessage());
 
         switch (_action.getType()) {
             case STEP -> {
                 var action = ((Scenario.StepAction) _action);
-                log.info(action.description);
-
             }
             case DOCUMENTATION -> {
                 var action = ((Scenario.DocumentationAction) _action);
-                log.debug(action.description);
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
@@ -226,6 +226,48 @@ public class ScenarioTest {
                             .contains(assertion);
                 }
             }
+            case BASH -> {
+                var action = ((Scenario.BashAction) _action);
+                log.info("Executing " + action.getScript());
+                execute("bash", action);
+            }
+            case SH -> {
+                var action = ((Scenario.ShAction) _action);
+                log.info("Executing " + action.getScript());
+                execute("sh", action);
+            }
+        }
+    }
+
+    private void execute(String script, Scenario.ScriptAction action) {
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile("bash_script", ".sh");
+            FileUtils.writeStringToFile(tempFile, action.getScript(), Charset.defaultCharset());
+
+            Process process = Runtime.getRuntime().exec(new String[]{script, tempFile.getAbsolutePath()});
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String ret = "";
+            String line;
+            while ((line = reader.readLine()) != null) {
+                ret = ret + line + "\n";
+            }
+            int exitCode = process.waitFor();
+            if (action.assertExitCode != null) {
+                assertThat(exitCode)
+                        .isEqualTo(action.assertExitCode);
+            }
+            assertThat(ret)
+                    .containsSequence(action.assertOutputContains)
+                    .doesNotContain(action.assertOutputDoesNotContain);
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (tempFile != null) {
+                tempFile.delete();
+            }
         }
     }
 
@@ -304,7 +346,7 @@ public class ScenarioTest {
 
     private static VClusterCreateResponse createVirtualCluster(String vcluster, String username) {
         log.info("Creating virtual cluster " + vcluster);
-        Response response = given()
+        return given()
                 .baseUri("http://localhost:8888/admin/vclusters/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
@@ -315,9 +357,7 @@ public class ScenarioTest {
                 then()
                 .statusCode(200)
                 .extract()
-                .response();
-        System.out.println(response.asPrettyString());
-        return response
+                .response()
                 .as(VClusterCreateResponse.class);
     }
 

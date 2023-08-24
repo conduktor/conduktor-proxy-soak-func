@@ -30,6 +30,21 @@ docker:
       enable.auto.commit: false
       client.id: clientId
 actions:
+  - type: BASH
+    script: echo 'hello'
+    assertOutputContains:
+      -  hello
+    assertOutputDoesNotContain:
+      -  blabla
+
+  - type: SH
+    script: echo 'glou'; exit 3;
+    assertExitCode: 3
+    assertOutputContains:
+      -  glou
+    assertOutputDoesNotContain:
+      -  blabla
+
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway
     names:

@@ -57,6 +57,8 @@ public class Scenario {
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
+            @JsonSubTypes.Type(value = BashAction.class, name = "BASH"),
+            @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP")
     })
     @Data
@@ -64,6 +66,11 @@ public class Scenario {
     @AllArgsConstructor
     public static class Action {
         private ActionType type;
+        private String description = "";
+
+        public String simpleMessage() {
+            return type + " " + description;
+        }
     }
 
     @Data
@@ -177,11 +184,7 @@ public class Scenario {
         private List<String> assertNames = new ArrayList<>();
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class DocumentationAction extends Action {
-        public String description;
     }
 
     public static class GatewayAction extends Action {
@@ -189,11 +192,26 @@ public class Scenario {
     }
 
 
+    public static class StepAction extends Action {
+    }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class StepAction extends Action {
-        public String description;
+    public static class ScriptAction extends Action {
+        public String script;
+        public Integer assertExitCode;
+        public List<String> assertOutputContains = new ArrayList<>();
+        public List<String> assertOutputDoesNotContain = new ArrayList<>();
+    }
+
+
+    @Data
+    public static class BashAction extends ScriptAction {
+    }
+
+    @Data
+    public static class ShAction extends ScriptAction {
     }
 
     @Data
@@ -241,8 +259,8 @@ public class Scenario {
         FETCH,
         ADD_INTERCEPTORS,
         REMOVE_INTERCEPTORS,
-        LIST_INTERCEPTORS;
+        LIST_INTERCEPTORS,
+        BASH,
+        SH;
     }
 }
-
-
