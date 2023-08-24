@@ -29,64 +29,53 @@ docker:
       enable.auto.commit: false
       client.id: clientId
 actions:
-  - type: CREATE_TOPIC
+  - type: STEP
+    description: Step1
+  - type: DOCUMENTATION
+    description: blabla
+  - type: ADD_INTERCEPTORS
     target: GATEWAY
-    topic: topic1
-  - type: PRODUCE
+    interceptors:
+      clusterA:
+        encryption-interceptor-config:
+          pluginClass: "io.conduktor.gateway.interceptor.EncryptPlugin"
+          "priority": 1
+          "config": {
+            "topic": "encryptedTopic",
+            "schemaRegistryConfig": {
+              "host": "http://schema-registry:8081"
+            },
+            "fields": [
+              {
+                "fieldName": "password",
+                "keySecretId": "secret-key-password",
+                "algorithm": {
+                  "type": "AES_GCM",
+                  "kms": "IN_MEMORY"
+                }
+              },
+              {
+                "fieldName": "visa",
+                "keySecretId": "secret-key-visaNumber",
+                "algorithm": {
+                  "type": "AES_GCM",
+                  "kms": "IN_MEMORY"
+                }
+              }
+            ]
+          }
+  - type: LIST_INTERCEPTORS
     target: GATEWAY
-    topic: topic1
-    messages:
-      - key: "key1"
-        value: "value1"
-        headers:
-          header_key1: "headerValue1"
-          header_key2: "headerValue2"
-      - key: "key2"
-        value: "value2"
-        headers:
-          header_key3: "headerValue3"
-          header_key4: "headerValue4"
-  - type: FETCH
-    target: KAFKA
-    topic: topic1
-    assertions:
-      - key:
-          expected: "key1"
-        value:
-          expected: "value1"
-        headers:
-          header_key1:
-            expected: "headerValue1"
-          header_key2:
-            expected: "headerValue2"
-      - key:
-          expected: "key2"
-        value:
-          expected: "value2"
-        headers:
-          header_key3:
-            expected: "headerValue3"
-          header_key4:
-            expected: "headerValue4"
-  - type: FETCH
+    vcluster: clusterA
+    assertSize: 1
+    assertNames:
+      - encryption-interceptor-config
+  - type: REMOVE_INTERCEPTORS
     target: GATEWAY
-    topic: topic1
-    assertions:
-      - key:
-          expected: "key1"
-        value:
-          expected: "value1"
-        headers:
-          header_key1:
-            expected: "headerValue1"
-          header_key2:
-            expected: "headerValue2"
-      - key:
-          expected: "key2"
-        value:
-          expected: "value2"
-        headers:
-          header_key3:
-            expected: "headerValue3"
-          header_key4:
-            expected: "headerValue4"
+    vcluster: clusterA
+    names:
+      - encryption-interceptor-config
+  - type: LIST_INTERCEPTORS
+    target: GATEWAY
+    vcluster: clusterA
+    assertSize: 0

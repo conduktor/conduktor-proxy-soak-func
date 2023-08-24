@@ -2,12 +2,18 @@ package io.conduktor.gateway.soak.func;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
+import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
 import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
 import io.restassured.http.ContentType;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -102,34 +108,76 @@ public class ScenarioTest {
             configurePlugins(plugins);
         }
 
+        var mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID));
+
         // Perform actions
         for (var action : actions) {
             var type = action.getType();
-            var target = action.getTarget();
-            final Scenario.Service targetService = getTargetService(kafka, gateway, target);
-            var topic = action.getTopic();
             var clientFactory = new ClientFactory();
 
-            log.info("Executing " + type + " on " + target);
+            log.info("Executing " + action.getType());
 
-            final Properties properties = properties(targetService, action.getProperties());
             switch (type) {
+                case STEP -> {
+                    var stepAction = ((Scenario.StepAction) action);
+                    log.info(stepAction.description);
+                }
+                case DOCUMENTATION -> {
+                    var documentationAction = ((Scenario.DocumentationAction) action);
+                    log.debug(documentationAction.description);
+                }
                 case CREATE_TOPIC -> {
+                    var createTopicAction = ((Scenario.CreateTopicAction) action);
+                    var topic = createTopicAction.getTopic();
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, createTopicAction.getTarget());
+                    log.info("Executing " + type + " on " + createTopicAction.getTarget());
+                    final Properties properties = properties(targetService, createTopicAction.getProperties());
                     try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
                         createTopic(topic, kafkaAdminClient);
                     }
                 }
                 case PRODUCE -> {
                     var produceAction = ((Scenario.ProduceAction) action);
+                    var topic = produceAction.getTopic();
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, produceAction.getTarget());
+                    log.info("Executing " + type + " on " + produceAction.getTarget());
+                    final Properties properties = properties(targetService, produceAction.getProperties());
                     try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
                         produce(topic, produceAction.getMessages(), kafkaProducer);
                     }
                 }
                 case FETCH -> {
                     var fetchAction = ((Scenario.FetchAction) action);
-                    final Map<String, Object> configs = new HashMap<>();
+                    var topic = fetchAction.getTopic();
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, fetchAction.getTarget());
+                    log.info("Executing " + type + " on " + fetchAction.getTarget());
+                    final Properties properties = properties(targetService, fetchAction.getProperties());
                     try (var consumer = clientFactory.consumer(properties)) {
                         consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
+                    }
+                }
+                case ADD_INTERCEPTORS -> {
+                    var addInterceptors = ((Scenario.AddInterceptorAction) action);
+                    configurePlugins(addInterceptors.getInterceptors());
+                }
+                case REMOVE_INTERCEPTORS -> {
+                    var removeInterceptors = ((Scenario.RemoveInterceptorAction) action);
+                    for (String name : removeInterceptors.getNames()) {
+                        removePlugin(removeInterceptors.vcluster, name);
+                    }
+                }
+                case LIST_INTERCEPTORS -> {
+                    var listInterceptors = ((Scenario.ListInterceptorAction) action);
+                    TenantInterceptorsResponse response = getPlugins(listInterceptors.vcluster);
+
+                    if (Objects.nonNull(listInterceptors.assertSize)) {
+                        assertThat(response.interceptors)
+                                .hasSize(listInterceptors.assertSize);
+                    }
+                    for (String assertion : listInterceptors.getAssertNames()) {
+                        assertThat(response.interceptors)
+                                .extracting(PluginResponse::getName)
+                                .contains(assertion);
                     }
                 }
             }
@@ -190,14 +238,15 @@ public class ScenarioTest {
 
     private static void configurePlugins(LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
         for (var plugin : plugins.entrySet()) {
-            var tenant = plugin.getKey();
-            configurePlugins(plugin.getValue(), tenant);
+            configurePlugins(plugin.getValue(), plugin.getKey());
         }
     }
 
-    private static void configurePlugins(LinkedHashMap<String, PluginRequest> plugins, String tenant) {
+
+    private static void configurePlugins(LinkedHashMap<String, PluginRequest> plugins, String vcluster) {
         for (var plugin : plugins.entrySet()) {
             var pluginName = plugin.getKey();
+            log.info("Configuring " + pluginName);
             var pluginBody = plugin.getValue();
             given()
                     .baseUri("http://localhost:8888/admin/interceptors/v1")
@@ -206,12 +255,47 @@ public class ScenarioTest {
                     .body(pluginBody)
                     .contentType(ContentType.JSON)
                     .when()
-                    .post("/vcluster/{tenant}/interceptor/{pluginName}", tenant, pluginName)
+                    .post("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, pluginName)
                     .then()
                     .statusCode(200)
                     .extract()
                     .response();
         }
+    }
+
+    private static void removePlugin(String vcluster, String name) {
+        given()
+                .baseUri("http://localhost:8888/admin/interceptors/v1")
+                .auth()
+                .basic(ADMIN_USER, ADMIN_PASSWORD)
+                .contentType(ContentType.JSON)
+                .when()
+                .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name)
+                .then()
+                .statusCode(200);
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static final class TenantInterceptorsResponse {
+        List<PluginResponse> interceptors;
+    }
+
+    private static TenantInterceptorsResponse getPlugins(String vcluster) {
+        return given()
+                .baseUri("http://localhost:8888/admin/interceptors/v1")
+                .auth()
+                .basic(ADMIN_USER, ADMIN_PASSWORD)
+                .contentType(ContentType.JSON)
+                .when()
+                .get("/vcluster/{vcluster}/interceptors", vcluster)
+                .then()
+                .statusCode(200)
+                .extract()
+                .response()
+                .as(TenantInterceptorsResponse.class);
+
     }
 
     private static void assertRecord(ConsumerRecord<String, String> record, Scenario.RecordAssertion recordAssertion) {

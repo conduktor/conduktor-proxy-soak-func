@@ -92,7 +92,6 @@ public class DockerComposeContainerUtils {
         try (var writer = new FileWriter(tempComposeFile)) {
             yaml.dump(composeConfig, writer);
         }
-        System.out.println(Files.toString(tempComposeFile, Charset.defaultCharset()));
         return tempComposeFile;
     }
 
