@@ -33,6 +33,12 @@ actions:
     description: Step1
   - type: DOCUMENTATION
     description: blabla
+  - type: CREATE_TOPICS
+    target: GATEWAY
+    topics:
+      - name: encryptedTopic
+        replicationFactor: 1
+        partitions: 1
   - type: ADD_INTERCEPTORS
     target: GATEWAY
     interceptors:

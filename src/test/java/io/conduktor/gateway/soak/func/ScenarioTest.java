@@ -126,21 +126,23 @@ public class ScenarioTest {
                     var documentationAction = ((Scenario.DocumentationAction) action);
                     log.debug(documentationAction.description);
                 }
-                case CREATE_TOPIC -> {
-                    var createTopicAction = ((Scenario.CreateTopicAction) action);
-                    var topic = createTopicAction.getTopic();
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, createTopicAction.getTarget());
-                    log.info("Executing " + type + " on " + createTopicAction.getTarget());
+                case CREATE_TOPICS -> {
+                    var createTopicAction = ((Scenario.CreateTopicsAction) action);
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, createTopicAction);
                     final Properties properties = properties(targetService, createTopicAction.getProperties());
                     try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                        createTopic(topic, kafkaAdminClient);
+                        for (Scenario.CreateTopicsAction.CreateTopicRequest topic : createTopicAction.getTopics()) {
+                            createTopic(kafkaAdminClient,
+                                    topic.getName(),
+                                    topic.getPartitions(),
+                                    topic.getReplicationFactor());
+                        }
                     }
                 }
                 case PRODUCE -> {
                     var produceAction = ((Scenario.ProduceAction) action);
                     var topic = produceAction.getTopic();
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, produceAction.getTarget());
-                    log.info("Executing " + type + " on " + produceAction.getTarget());
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, produceAction);
                     final Properties properties = properties(targetService, produceAction.getProperties());
                     try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
                         produce(topic, produceAction.getMessages(), kafkaProducer);
@@ -149,8 +151,7 @@ public class ScenarioTest {
                 case FETCH -> {
                     var fetchAction = ((Scenario.FetchAction) action);
                     var topic = fetchAction.getTopic();
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, fetchAction.getTarget());
-                    log.info("Executing " + type + " on " + fetchAction.getTarget());
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, fetchAction);
                     final Properties properties = properties(targetService, fetchAction.getProperties());
                     try (var consumer = clientFactory.consumer(properties)) {
                         consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
@@ -186,7 +187,10 @@ public class ScenarioTest {
     }
 
     private Scenario.Service getTargetService(Scenario.Service kafka, Scenario.Service gateway, Scenario.ActionTarget target) {
-        switch (target) {
+        if (target.getTarget() == null) {
+            throw new RuntimeException("Target is required for " + target.getType());
+        }
+        switch (target.getTarget()) {
             case KAFKA:
                 return kafka;
             case GATEWAY:
@@ -207,8 +211,8 @@ public class ScenarioTest {
         return p;
     }
 
-    private static void createTopic(String topic, AdminClient kafkaAdminClient) throws InterruptedException {
-        KafkaActionUtils.createTopic(kafkaAdminClient, topic, 1, (short) 1, Map.of(), 10);
+    private static void createTopic(AdminClient kafkaAdminClient, String topic, int partitions, int replicationFactor) throws InterruptedException {
+        KafkaActionUtils.createTopic(kafkaAdminClient, topic, partitions, (short) replicationFactor, Map.of(), 10);
     }
 
     private static void produce(String topic, LinkedList<Scenario.Message> messages, KafkaProducer<String, String> producer) throws ExecutionException, InterruptedException {

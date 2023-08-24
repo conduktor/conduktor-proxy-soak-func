@@ -45,7 +45,7 @@ public class Scenario {
     @JsonSubTypes({
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
-            @JsonSubTypes.Type(value = CreateTopicAction.class, name = "CREATE_TOPIC"),
+            @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
             @JsonSubTypes.Type(value = AddInterceptorAction.class, name = "ADD_INTERCEPTORS"),
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
@@ -59,22 +59,39 @@ public class Scenario {
         private ActionType type;
     }
 
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class CreateTopicAction extends Action {
-        private ActionTarget target;
+    public static class ActionTarget extends Action {
+        private Target target;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateTopicsAction extends ActionTarget {
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static final class CreateTopicRequest {
+            private String name;
+            private int partitions;
+            private int replicationFactor;
+        }
+
         private LinkedHashMap<String, String> properties;
-        private String topic;
+        private List<CreateTopicRequest> topics;
+
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class ProduceAction extends Action {
+    public static class ProduceAction extends ActionTarget {
         private LinkedList<Message> messages;
-        private ActionTarget target;
         private LinkedHashMap<String, String> properties;
         private String topic;
     }
@@ -83,9 +100,8 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class FetchAction extends Action {
+    public static class FetchAction extends ActionTarget {
         private LinkedList<RecordAssertion> assertions;
-        private ActionTarget target;
         private LinkedHashMap<String, String> properties;
         private String topic;
     }
@@ -94,8 +110,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class AddInterceptorAction extends Action {
-        private ActionTarget target;
+    public static class AddInterceptorAction extends ActionTarget {
         private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
     }
 
@@ -103,8 +118,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class RemoveInterceptorAction extends Action {
-        private ActionTarget target;
+    public static class RemoveInterceptorAction extends ActionTarget {
         public String vcluster;
         private List<String> names = new ArrayList<>();
     }
@@ -113,8 +127,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class ListInterceptorAction extends Action {
-        private ActionTarget target;
+    public static class ListInterceptorAction extends ActionTarget {
         public String vcluster;
         public Integer assertSize;
         private List<String> assertNames = new ArrayList<>();
@@ -171,7 +184,7 @@ public class Scenario {
     public static enum ActionType {
         STEP,
         DOCUMENTATION,
-        CREATE_TOPIC,
+        CREATE_TOPICS,
         PRODUCE,
         FETCH,
         ADD_INTERCEPTORS,
@@ -181,7 +194,7 @@ public class Scenario {
 
     }
 
-    public enum ActionTarget {
+    public enum Target {
         KAFKA,
         GATEWAY
     }
