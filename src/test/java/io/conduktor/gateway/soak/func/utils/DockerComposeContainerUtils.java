@@ -9,11 +9,13 @@ import org.testcontainers.containers.DockerComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.containers.wait.strategy.WaitStrategy;
 import org.testcontainers.containers.wait.strategy.WaitStrategyTarget;
+import org.testcontainers.shaded.com.google.common.io.Files;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,21 +51,10 @@ public class DockerComposeContainerUtils {
     }
 
     public static void startContainer(Scenario.Service kafka, Scenario.Service gateway) throws IOException {
-//        ZK_PORT = PortHelper.getFreePort();
-//        KAFKA1_INTERNAL_PORT = PortHelper.getFreePort();
-//        KAFKA1_EXTERNAL_PORT = PortHelper.getFreePort();
-//        KAFKA2_INTERNAL_PORT = PortHelper.getFreePort();
-//        KAFKA2_EXTERNAL_PORT = PortHelper.getFreePort();
-//        SCHEMA_REGISTRY_PORT = PortHelper.getFreePort();
-//        GATEWAY_PUBLIC_PORT = PortHelper.getFreePort();
-//        var ranges = PortHelper.getContinuousFreePort(7);
-//        GATEWAY_PORT_RANGE = ranges.get(0) + ":" + ranges.get(ranges.size() - 1);
-//        GATEWAY_PORT = ranges.get(0);
-        updateGatewayForTLS(gateway);
         var tempComposeFile = getUpdatedDockerComposeFile(kafka.getEnvironment(), gateway.getEnvironment());
         composeContainer = new DockerComposeContainer<>(tempComposeFile)
-                .withEnv("CP_VERSION", kafka.getVersion())
-                .withEnv("GATEWAY_VERSION", gateway.getVersion())
+                .withEnv("CP_IMAGE", kafka.getImage())
+                .withEnv("GATEWAY_IMAGE", gateway.getImage())
 //                .withEnv("ZK_PORT", String.valueOf(ZK_PORT))
 //                .withEnv("KAFKA1_INTERNAL_PORT", String.valueOf(KAFKA1_INTERNAL_PORT))
 //                .withEnv("KAFKA1_EXTERNAL_PORT", String.valueOf(KAFKA1_EXTERNAL_PORT))
@@ -87,14 +78,6 @@ public class DockerComposeContainerUtils {
         }
     }
 
-    private static void updateGatewayForTLS(Scenario.Service gateway) {
-        if (gateway.getEnvironment().get(GATEWAY_SECURITY_PROTOCOL).equals(SASL_SSL.name())) {
-            gateway.getEnvironment().put("GATEWAY_SSL_KEY_STORE_PATH", "./config/tls/sasl-ssl/keystore.jks");
-        } else if (gateway.getEnvironment().get(GATEWAY_SECURITY_PROTOCOL).equals(SSL.name())) {
-            gateway.getEnvironment().put("GATEWAY_SSL_KEY_STORE_PATH", "./config/tls/ssl/keystore.jks");
-        }
-    }
-
     @NotNull
     private static File getUpdatedDockerComposeFile(LinkedHashMap<String, String> kafkaConfigs, LinkedHashMap<String, String> gatewayConfigs) throws IOException {
         var yaml = new Yaml();
@@ -109,6 +92,7 @@ public class DockerComposeContainerUtils {
         try (var writer = new FileWriter(tempComposeFile)) {
             yaml.dump(composeConfig, writer);
         }
+        System.out.println(Files.toString(tempComposeFile, Charset.defaultCharset()));
         return tempComposeFile;
     }
 

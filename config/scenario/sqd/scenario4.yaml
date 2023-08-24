@@ -1,25 +1,33 @@
 title: Simple test with SSL
 docker:
   kafka:
-    version: latest
+    image: confluentinc/cp-kafka:latest
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.server: localhost:29092
   gateway:
-    version: 2.0.0-amd64
+    image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
       GATEWAY_SECURITY_PROTOCOL: SSL
+    properties:
+      boot: SSL
+      security.protocol: SSL
+      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
+      bootstrap.servers: localhost:6969
+      key.serializer: org.apache.kafka.common.serialization.StringSerializer
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value.serializer: org.apache.kafka.common.serialization.StringSerializer
+      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
 actions:
   - type: CREATE_TOPIC
     target: GATEWAY
-    properties:
-      security.protocol: SSL
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
   - type: PRODUCE
     target: GATEWAY
-    properties:
-      security.protocol: SSL
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     messages:
       - key: "key3"
@@ -29,9 +37,6 @@ actions:
           header_key2: "headerValue5"
   - type: FETCH
     target: GATEWAY
-    properties:
-      security.protocol: SSL
-      sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"franklx\" password=\"eyJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImZyYW5rbHgiLCJ2Y2x1c3RlciI6ImZyYW5rbHgiLCJleHAiOjExNjkyMDg4MjI0fQ.RaDEBfXwUJHKYiDeOGQ8HgLT7K9yCnNa6SckSvHZuCw\";"
     topic: topic1
     assertions:
       - key:

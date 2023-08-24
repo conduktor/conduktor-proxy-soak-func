@@ -1,6 +1,7 @@
 package io.conduktor.gateway.soak.func.utils;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -12,7 +13,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class ClientFactory implements Closeable {
@@ -25,12 +25,8 @@ public class ClientFactory implements Closeable {
 
     private static final String SECURITY_PROTOCOL_CONFIG = "security.protocol";
 
-    public AdminClient gatewayAdmin(Map<String, String> properties) {
-        var gatewayProperties = getDefaultGatewayProperties(properties);
-        if (Objects.nonNull(properties)) {
-            gatewayProperties.putAll(properties);
-        }
-        var admin = AdminClient.create(gatewayProperties);
+    public AdminClient gatewayAdmin(Properties properties) {
+        var admin = AdminClient.create(properties);
         closeables.add(admin);
         return admin;
     }
@@ -43,8 +39,8 @@ public class ClientFactory implements Closeable {
         gatewayProperties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         gatewayProperties.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         gatewayProperties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-        gatewayProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        gatewayProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        gatewayProperties.put("auto.offset.reset", "earliest");
+        gatewayProperties.put("enable.auto.commit", "false");
         gatewayProperties.put("client.id", "clientId");
         if (Objects.nonNull(properties)) {
             gatewayProperties.putAll(properties);
@@ -75,83 +71,33 @@ public class ClientFactory implements Closeable {
         }
     }
 
-    @NotNull
-    private static Properties getDefaultKafkaProperties() {
-        var kafkaProperties = new Properties();
-        kafkaProperties.put("bootstrap.servers", "localhost:29092");
-        return kafkaProperties;
-    }
 
-    public AdminClient kafkaAdmin(Map<String, String> properties) {
-        var kafkaProperties = getDefaultKafkaProperties();
-        if (Objects.nonNull(properties)) {
-            kafkaProperties.putAll(properties);
-        }
-        var admin = AdminClient.create(kafkaProperties);
+    public AdminClient kafkaAdmin(Properties properties) {
+        dumpConfig("Admin", properties);
+        var admin = AdminClient.create(properties);
         closeables.add(admin);
-        return AdminClient.create(kafkaProperties);
+        return AdminClient.create(properties);
     }
 
-    public KafkaProducer<String, String> gatewayProducer(Map<String, String> properties) {
-        var gatewayProperties = getDefaultGatewayProperties(properties);
-        if (Objects.nonNull(properties)) {
-            gatewayProperties.putAll(properties);
-        }
-        return producer(gatewayProperties);
-    }
-
-    public KafkaProducer<String, String> kafkaProducer(Map<String, String> properties) {
-        var kafkaProperties = getDefaultKafkaProperties();
-        if (Objects.nonNull(properties)) {
-            kafkaProperties.putAll(properties);
-        }
-        return producer(kafkaProperties);
-    }
-
-    public KafkaConsumer<String, String> gatewayConsumer(final String groupId, Map<String, String> properties) {
-        var gatewayProperties = getDefaultGatewayProperties(properties);
-        if (Objects.nonNull(properties)) {
-            gatewayProperties.putAll(properties);
-        }
-        return consumer(gatewayProperties, groupId);
-    }
-
-    public KafkaConsumer<String, String> kafkaConsumer(final String groupId, Map<String, String> properties) {
-        var kafkaProperties = getDefaultKafkaProperties();
-        if (Objects.nonNull(properties)) {
-            kafkaProperties.putAll(properties);
-        }
-        return consumer(kafkaProperties, groupId);
-    }
-
-    private KafkaProducer<String, String> producer(Properties producerProperties) {
-        var producer = new KafkaProducer<>(producerProperties, new StringSerializer(), new StringSerializer());
+    public KafkaProducer<String, String> kafkaProducer(Properties properties) {
+        dumpConfig("Producer", properties);
+        var producer = new KafkaProducer<>(properties, new StringSerializer(), new StringSerializer());
         closeables.add(producer);
         return producer;
     }
 
-    private KafkaConsumer<String, String> consumer(Properties consumerProperties, final String groupId) {
-        final Map<String, Object> configs = new HashMap<>() {{
-            put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-            put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-            put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        }};
-        return consumer(consumerProperties, configs);
-    }
-
-    private KafkaConsumer<String, String> consumer(Properties consumerProperties, Map<String, Object> consumerConfigs) {
-        Properties clientProperties = new Properties();
-        clientProperties.putAll(consumerProperties);
-        clientProperties.putAll(consumerConfigs);
-        dumpConfig("Consumer", consumerConfigs);
-        var consumer = new KafkaConsumer<>(clientProperties, new StringDeserializer(), new StringDeserializer());
+    public  KafkaConsumer<String, String> consumer(Properties properties) {
+        dumpConfig("Consumer", properties);
+        var consumer = new KafkaConsumer<>(properties, new StringDeserializer(), new StringDeserializer());
         closeables.add(consumer);
         return consumer;
     }
 
 
-    private static void dumpConfig(final String type, final Map<String, Object> config) {
-        log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
+    private static void dumpConfig(final String type, Properties clientProperties) {
+
+        log.info(type + " " + clientProperties);
+        //log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
     }
 
 

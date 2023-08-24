@@ -106,59 +106,57 @@ public class ScenarioTest {
         for (var action : actions) {
             var type = action.getType();
             var target = action.getTarget();
-            var properties = action.getProperties();
+            final Scenario.Service targetService = getTargetService(kafka, gateway, target);
             var topic = action.getTopic();
             var clientFactory = new ClientFactory();
 
-            //TODO: refactor it to look better
+            log.info("Executing " + type + " on " + target);
+
+            final Properties properties = properties(targetService, action.getProperties());
             switch (type) {
                 case CREATE_TOPIC -> {
-                    switch (target) {
-                        case KAFKA -> {
-                            try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                                createTopic(topic, kafkaAdminClient);
-                            }
-                        }
-                        case GATEWAY -> {
-                            try (var gatewayAdminClient = clientFactory.gatewayAdmin(properties)) {
-                                createTopic(topic, gatewayAdminClient);
-                            }
-                        }
+                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                        createTopic(topic, kafkaAdminClient);
                     }
                 }
                 case PRODUCE -> {
                     var produceAction = ((Scenario.ProduceAction) action);
-                    switch (target) {
-                        case KAFKA -> {
-                            try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
-                                produce(topic, produceAction.getMessages(), kafkaProducer);
-                            }
-                        }
-                        case GATEWAY -> {
-                            try (var producer = clientFactory.gatewayProducer(properties)) {
-                                produce(topic, produceAction.getMessages(), producer);
-                            }
-                        }
+                    try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
+                        produce(topic, produceAction.getMessages(), kafkaProducer);
                     }
                 }
                 case FETCH -> {
                     var fetchAction = ((Scenario.FetchAction) action);
-                    switch (target) {
-                        case KAFKA -> {
-                            try (var consumer = clientFactory.kafkaConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
-                            }
-                        }
-                        case GATEWAY -> {
-                            try (var consumer = clientFactory.gatewayConsumer("groupId", properties)) {
-                                consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
-                            }
-                        }
+                    final Map<String, Object> configs = new HashMap<>();
+                    try (var consumer = clientFactory.consumer(properties)) {
+                        consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
                     }
                 }
             }
             clientFactory.close();
         }
+    }
+
+    private Scenario.Service getTargetService(Scenario.Service kafka, Scenario.Service gateway, Scenario.ActionTarget target) {
+        switch (target) {
+            case KAFKA:
+                return kafka;
+            case GATEWAY:
+                return gateway;
+            default:
+                throw new RuntimeException(target + " is not supported");
+        }
+    }
+
+    private Properties properties(Scenario.Service service, LinkedHashMap<String, String> properties) {
+        Properties p = new Properties();
+        if (service.getProperties() != null) {
+            p.putAll(service.getProperties());
+        }
+        if (properties != null) {
+            p.putAll(properties);
+        }
+        return p;
     }
 
     private static void createTopic(String topic, AdminClient kafkaAdminClient) throws InterruptedException {

@@ -1,14 +1,33 @@
 title: Simple test with NONE authenticator type
 docker:
   kafka:
-    version: latest
+    image: confluentinc/cp-kafka:latest
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      key.serializer: org.apache.kafka.common.serialization.StringSerializer
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value.serializer: org.apache.kafka.common.serialization.StringSerializer
+      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
   gateway:
-    version: 2.0.0-amd64
+    image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
+      GATEWAY_ADVERTISED_HOST: localhost
       GATEWAY_SECURITY_PROTOCOL: NONE
-      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "false"
+    properties:
+      bootstrap.servers: localhost:6969
+      key.serializer: org.apache.kafka.common.serialization.StringSerializer
+      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value.serializer: org.apache.kafka.common.serialization.StringSerializer
+      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
 actions:
   - type: CREATE_TOPIC
     target: GATEWAY

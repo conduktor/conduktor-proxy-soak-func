@@ -4,7 +4,7 @@ Testing your Conduktor Gateway by your own scenario (yaml file in config/scenari
 
 ## Scenario YAML File Description
 
-The [scenario3.yaml](config/scenario/scenario3.yaml) file in this config/scenario folder repository is a configuration
+The [scenario3.yaml](config/scenario/sqd/scenario3.yaml) file in this config/scenario folder repository is a configuration
 file used to define a test workflow for testing functionalities related to SASL_SSL and Dynamic Header Injection in
 Conduktor Gateway. The YAML file contains various sections that define the setup and actions to be performed during the
 test.<br/>

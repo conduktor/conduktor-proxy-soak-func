@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:${CP_VERSION}
+    image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper
     ports:
       - "2801:2801"
@@ -14,7 +14,7 @@ services:
       retries: 25
 
   kafka1:
-    image: confluentinc/cp-kafka:${CP_VERSION}
+    image: ${CP_IMAGE}
     hostname: kafka1
     ports:
       - "29092:29092"
@@ -41,7 +41,7 @@ services:
       retries: 25
 
   kafka2:
-    image: confluentinc/cp-kafka:${CP_VERSION}
+    image: ${CP_IMAGE}
     hostname: kafka2
     ports:
       - "29093:29093"
@@ -83,7 +83,7 @@ services:
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
   conduktor-gateway:
-    image: conduktor/conduktor-gateway:${GATEWAY_VERSION}
+    image: ${GATEWAY_IMAGE}
     hostname: conduktor-gateway
     depends_on:
       kafka1:
@@ -96,14 +96,7 @@ services:
       - "9999:9999"
       - "8888:8888"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092, kafka2:9093
-      GATEWAY_SSL_KEY_PASSWORD: changeit
-      GATEWAY_SSL_KEY_STORE_PASSWORD: changeit
-      GATEWAY_SSL_KEY_TYPE: pkcs12
-      GATEWAY_HOST: localhost
-      SCHEMA_REGISTRY_HOST: http://schema-registry:8081
-      GATEWAY_INTERCEPTOR_CONFIG_LOCATION: "~"
-      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: "true"
+        a: b
     volumes:
       - type: bind
         source: "./config/tls"

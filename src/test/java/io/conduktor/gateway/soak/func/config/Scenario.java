@@ -31,7 +31,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Service {
-        private String version;
+        private String image;
         private LinkedHashMap<String, String> environment;
         private LinkedHashMap<String, String> properties;
     }
