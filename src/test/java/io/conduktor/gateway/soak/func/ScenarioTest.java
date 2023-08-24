@@ -7,6 +7,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
+import io.conduktor.gateway.soak.func.config.Scenario.DescribeTopicsAction.DescribeTopicsActionAssertions;
 import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
@@ -19,6 +20,7 @@ import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -136,6 +138,42 @@ public class ScenarioTest {
                                     topic.getName(),
                                     topic.getPartitions(),
                                     topic.getReplicationFactor());
+                        }
+                    }
+                }
+                case LIST_TOPICS -> {
+                    var listTopicsAction = ((Scenario.ListTopicsAction) action);
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, listTopicsAction);
+                    final Properties properties = properties(targetService, targetService.getProperties());
+                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                        Set<String> topics = kafkaAdminClient.listTopics().names().get();
+                        if (Objects.nonNull(listTopicsAction.assertSize)) {
+                            assertThat(topics)
+                                    .hasSize(listTopicsAction.assertSize);
+                        }
+                        assertThat(topics)
+                                .containsAll(listTopicsAction.getAssertExists());
+                        assertThat(topics)
+                                .doesNotContainAnyElementsOf(listTopicsAction.getAssertDoesNotExist());
+                    }
+                }
+                case DESCRIBE_TOPICS -> {
+                    var describeTopicsAction = ((Scenario.DescribeTopicsAction) action);
+                    final Scenario.Service targetService = getTargetService(kafka, gateway, describeTopicsAction);
+                    final Properties properties = properties(targetService, targetService.getProperties());
+                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                        Map<String, TopicDescription> topics = kafkaAdminClient
+                                .describeTopics(describeTopicsAction.topics)
+                                .allTopicNames()
+                                .get();
+                        for (DescribeTopicsActionAssertions assertion : describeTopicsAction.getAssertions()) {
+                            assertThat(topics)
+                                    .containsKey(assertion.getName());
+                            TopicDescription topicDescription = topics.get(assertion.getName());
+                            assertThat(topicDescription.partitions())
+                                    .hasSize(assertion.getPartitions());
+                            assertThat(topicDescription.partitions().get(0).replicas())
+                                    .hasSize(assertion.getReplicationFactor());
                         }
                     }
                 }

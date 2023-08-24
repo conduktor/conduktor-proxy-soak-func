@@ -46,6 +46,8 @@ public class Scenario {
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
+            @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
+            @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
             @JsonSubTypes.Type(value = AddInterceptorAction.class, name = "ADD_INTERCEPTORS"),
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
@@ -65,6 +67,34 @@ public class Scenario {
     @AllArgsConstructor
     public static class ActionTarget extends Action {
         private Target target;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ListTopicsAction extends ActionTarget {
+        public Integer assertSize;
+        private List<String> assertExists = new ArrayList<>();
+        private List<String> assertDoesNotExist = new ArrayList<>();
+    }
+
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DescribeTopicsAction extends ActionTarget {
+        public List<String> topics;
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static final class DescribeTopicsActionAssertions {
+            private String name;
+            private int partitions;
+            private int replicationFactor;
+        }
+
+        public List<DescribeTopicsActionAssertions> assertions;
     }
 
     @Data
@@ -185,6 +215,8 @@ public class Scenario {
         STEP,
         DOCUMENTATION,
         CREATE_TOPICS,
+        LIST_TOPICS,
+        DESCRIBE_TOPICS,
         PRODUCE,
         FETCH,
         ADD_INTERCEPTORS,

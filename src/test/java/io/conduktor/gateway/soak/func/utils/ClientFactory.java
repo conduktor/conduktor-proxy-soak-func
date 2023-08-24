@@ -71,34 +71,21 @@ public class ClientFactory implements Closeable {
         }
     }
 
-
     public AdminClient kafkaAdmin(Properties properties) {
-        dumpConfig("Admin", properties);
         var admin = AdminClient.create(properties);
         closeables.add(admin);
         return AdminClient.create(properties);
     }
 
     public KafkaProducer<String, String> kafkaProducer(Properties properties) {
-        dumpConfig("Producer", properties);
         var producer = new KafkaProducer<>(properties, new StringSerializer(), new StringSerializer());
         closeables.add(producer);
         return producer;
     }
 
     public  KafkaConsumer<String, String> consumer(Properties properties) {
-        dumpConfig("Consumer", properties);
         var consumer = new KafkaConsumer<>(properties, new StringDeserializer(), new StringDeserializer());
         closeables.add(consumer);
         return consumer;
     }
-
-
-    private static void dumpConfig(final String type, Properties clientProperties) {
-
-        log.info(type + " " + clientProperties);
-        //log.info("{}:\n{}", type, config.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("\n")));
-    }
-
-
 }
