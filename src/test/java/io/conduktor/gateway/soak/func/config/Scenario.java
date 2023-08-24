@@ -1,5 +1,6 @@
 package io.conduktor.gateway.soak.func.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.AllArgsConstructor;
@@ -143,6 +144,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
+
     public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions;
         private LinkedHashMap<String, String> properties;
@@ -262,7 +264,7 @@ public class Scenario {
     @AllArgsConstructor
     public static class Assertion {
         private String operator = "isEqualTo";
-        private Object expected;
+        private String expected;
     }
 
     public enum ActionType {

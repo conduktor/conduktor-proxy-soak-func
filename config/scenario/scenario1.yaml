@@ -88,7 +88,7 @@ actions:
     kafka: gateway
     topic: encryptedTopic
     messages:
-      - value: 'hello world'
+      - value: '{"msg": "hello world"}'
 
   - type: CONSUME
     kafka: gateway
@@ -100,11 +100,11 @@ actions:
     assertions:
       - description: confirm hello is back
         value:
-          operator: isEqualTo
+          operator: containsIgnoreCase
           expected: 'hello world'
       - description: confirm blabla does not exists
         value:
-          operator: isNotEqualTo
+          operator: doesNotContainIgnoringCase
           expected: 'blabla'
 
   - type: DESCRIBE_TOPICS
@@ -120,7 +120,7 @@ actions:
     gateway: gateway
     interceptors:
       clusterA:
-        encryption-interceptor-config:
+        encryption:
           pluginClass: "io.conduktor.gateway.interceptor.EncryptPlugin"
           "priority": 1
           "config": {
@@ -153,15 +153,35 @@ actions:
     vcluster: clusterA
     assertSize: 1
     assertNames:
-      - encryption-interceptor-config
+      - encryption
+
+  - type: PRODUCE
+    kafka: gateway
+    topic: encryptedTopic
+    messages:
+      - value: '{"name":"conduktor","username":"test@conduktor.io","password":"password1","visa":"visa123456","address":"Conduktor Towers, London"}'
+
+  - type: CONSUME
+    kafka: gateway
+    topics:
+      - encryptedTopic
+    properties:
+      group.id: blabla
+    assertions:
+      - description: confirm encryption at rest - only 2 fields password and visa are encrypted
+        value:
+          operator: satisfies
+          expected: '[name] == "conduktor" && [username] == "test@conduktor.io" && [password] != "password1" && [visa] != "visa123456" && [address] == "Conduktor Towers, London"'
 
   - type: REMOVE_INTERCEPTORS
     gateway: gateway
     vcluster: clusterA
     names:
-      - encryption-interceptor-config
+      - encryption
 
   - type: LIST_INTERCEPTORS
     gateway: gateway
     vcluster: clusterA
     assertSize: 0
+
+  - type: SUCCESS

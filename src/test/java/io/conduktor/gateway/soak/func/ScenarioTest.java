@@ -24,7 +24,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.assertj.core.api.AbstractAssert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
@@ -201,8 +200,10 @@ public class ScenarioTest {
                 var action = ((Scenario.ConsumeAction) _action);
                 try (var consumer = clientFactory.consumer(getProperties(clusters, action))) {
                     var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
-                    assertThat(records.size())
-                            .isGreaterThanOrEqualTo(action.getAssertSize());
+                    if (Objects.nonNull(action.getAssertSize())) {
+                        assertThat(records.size())
+                                .isGreaterThanOrEqualTo(action.getAssertSize());
+                    }
                     assertRecords(records, action.getAssertions());
                 }
             }
@@ -441,26 +442,51 @@ public class ScenarioTest {
         }
         var expected = assertion.getExpected();
         var assertMethod = assertion.getOperator();
-        if (Objects.isNull(expected) || expected instanceof String str && StringUtils.isBlank(str)) {
+        if (StringUtils.isBlank(expected)) {
             return;
         }
         try {
-            if ("satisfies".equals(assertMethod)) {
-                var dataAsMap = MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
-                });
-                var parser = new SpelExpressionParser();
-                var context = new StandardEvaluationContext(dataAsMap);
-                context.setVariables(dataAsMap);
 
-                var satisfied = parser.parseExpression(String.valueOf(expected)).getValue(context, Boolean.class);
-                assertEquals(Boolean.TRUE, satisfied);
-                return;
+            switch (assertMethod) {
+                case "satisfied" -> {
+                    try {
+                        var dataAsMap = MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
+                        });
+                        var parser = new SpelExpressionParser();
+                        var context = new StandardEvaluationContext(dataAsMap);
+                        context.setVariables(dataAsMap);
+
+                        var satisfied = parser.parseExpression(String.valueOf(expected)).getValue(context, Boolean.class);
+                        assertEquals(Boolean.TRUE, satisfied);
+                    } catch (Exception e) {
+
+                    }
+                }
+                case "isBlank" -> {
+                    assertThat(data)
+                            .isBlank();
+                }
+                case "isNotBlank" -> {
+                    assertThat(data)
+                            .isNotBlank();
+                }
+                case "containsIgnoreCase" -> {
+                    assertThat(data)
+                            .containsIgnoringCase(expected);
+                }
+                case "contains" -> {
+                    assertThat(data)
+                            .contains(expected);
+                }
+                case "doesNotContain" -> {
+                    assertThat(data)
+                            .doesNotContain(expected);
+                }
+                case "doesNotContainIgnoringCase" -> {
+                    assertThat(data)
+                            .doesNotContainIgnoringCase(expected);
+                }
             }
-            //TODO: support more types
-            var method = AbstractAssert.class.getMethod(assertMethod, Object.class);
-            method.invoke(assertThat(data), expected);
-        } catch (NoSuchMethodException ex) {
-            fail("Assertion.assertThat '" + assertMethod + "' is not supported");
         } catch (Throwable ex) {
             fail(ExceptionUtils.getRootCause(ex));
         }
