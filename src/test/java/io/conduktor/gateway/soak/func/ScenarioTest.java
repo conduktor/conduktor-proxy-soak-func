@@ -127,6 +127,9 @@ public class ScenarioTest {
             case DOCUMENTATION -> {
                 var action = ((Scenario.DocumentationAction) _action);
             }
+            case SUCCESS -> {
+                var action = ((Scenario.SuccessAction) _action);
+            }
             case MARKDOWN -> {
                 var action = ((Scenario.MarkdownAction) _action);
                 log.info(action.getMarkdown());

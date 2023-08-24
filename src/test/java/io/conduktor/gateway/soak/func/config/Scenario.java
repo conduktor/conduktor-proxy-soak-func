@@ -1,6 +1,5 @@
 package io.conduktor.gateway.soak.func.config;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.AllArgsConstructor;
@@ -59,6 +58,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = MarkdownAction.class, name = "MARKDOWN"),
+            @JsonSubTypes.Type(value = SuccessAction.class, name = "SUCCESS"),
             @JsonSubTypes.Type(value = BashAction.class, name = "BASH"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
@@ -191,6 +191,9 @@ public class Scenario {
     public static class DocumentationAction extends Action {
     }
 
+    public static class SuccessAction extends Action {
+    }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -269,6 +272,7 @@ public class Scenario {
 
     public enum ActionType {
         STEP,
+        SUCCESS,
         DOCUMENTATION,
         MARKDOWN,
         CREATE_TOPICS,
