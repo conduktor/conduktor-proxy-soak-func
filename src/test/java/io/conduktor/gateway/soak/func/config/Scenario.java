@@ -48,7 +48,7 @@ public class Scenario {
             visible = true)
     @JsonSubTypes({
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
-            @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
+            @JsonSubTypes.Type(value = ConsumeAction.class, name = "CONSUME"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
             @JsonSubTypes.Type(value = CreateVirtualClustersAction.class, name = "CREATE_VIRTUAL_CLUSTERS"),
             @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
@@ -57,6 +57,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
+            @JsonSubTypes.Type(value = MarkdownAction.class, name = "MARKDOWN"),
             @JsonSubTypes.Type(value = BashAction.class, name = "BASH"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
@@ -142,7 +143,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class FetchAction extends KafkaAction {
+    public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions;
         private LinkedHashMap<String, String> properties;
         private int timeout = 1000;
@@ -186,6 +187,13 @@ public class Scenario {
     }
 
     public static class DocumentationAction extends Action {
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MarkdownAction extends Action {
+        public String markdown;
     }
 
     public static class GatewayAction extends Action {
@@ -260,12 +268,13 @@ public class Scenario {
     public enum ActionType {
         STEP,
         DOCUMENTATION,
+        MARKDOWN,
         CREATE_TOPICS,
         CREATE_VIRTUAL_CLUSTERS,
         LIST_TOPICS,
         DESCRIBE_TOPICS,
         PRODUCE,
-        FETCH,
+        CONSUME,
         ADD_INTERCEPTORS,
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS,

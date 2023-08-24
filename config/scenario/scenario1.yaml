@@ -30,7 +30,9 @@ actions:
       -  blabla
 
   - type: SH
-    script: echo 'glou'; exit 3;
+    script: >
+      echo 'glou'; 
+      exit 3;
     assertExitCode: 3
     assertOutputContains:
       -  glou
@@ -54,6 +56,20 @@ actions:
   - type: DOCUMENTATION
     description: blabla
 
+  - type: MARKDOWN
+    markdown: |
+      Run the full setup 
+
+      ```bash
+      docker compose up --wait --detach
+      ```
+
+      Run the demo
+
+      ```sh
+      ./run.sh
+      ```
+
   - type: CREATE_TOPICS
     kafka: gateway
     topics:
@@ -74,7 +90,7 @@ actions:
     messages:
       - value: 'hello world'
 
-  - type: FETCH
+  - type: CONSUME
     kafka: gateway
     properties:
       group.id: bla

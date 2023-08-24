@@ -128,6 +128,10 @@ public class ScenarioTest {
             case DOCUMENTATION -> {
                 var action = ((Scenario.DocumentationAction) _action);
             }
+            case MARKDOWN -> {
+                var action = ((Scenario.MarkdownAction) _action);
+                log.info(action.getMarkdown());
+            }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
                 List<String> names = action.getNames();
@@ -193,8 +197,8 @@ public class ScenarioTest {
                     produce(action.getTopic(), action.getMessages(), kafkaProducer);
                 }
             }
-            case FETCH -> {
-                var action = ((Scenario.FetchAction) _action);
+            case CONSUME -> {
+                var action = ((Scenario.ConsumeAction) _action);
                 try (var consumer = clientFactory.consumer(getProperties(clusters, action))) {
                     var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
                     assertThat(records.size())
@@ -257,21 +261,21 @@ public class ScenarioTest {
 
             Process process = Runtime.getRuntime().exec(new String[]{script, tempFile.getAbsolutePath()});
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String ret = "";
-            String line;
-            while ((line = reader.readLine()) != null) {
-                ret = ret + line + "\n";
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String ret = "";
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    ret = ret + line + "\n";
+                }
+                int exitCode = process.waitFor();
+                if (action.assertExitCode != null) {
+                    assertThat(exitCode)
+                            .isEqualTo(action.assertExitCode);
+                }
+                assertThat(ret)
+                        .containsSequence(action.assertOutputContains)
+                        .doesNotContain(action.assertOutputDoesNotContain);
             }
-            int exitCode = process.waitFor();
-            if (action.assertExitCode != null) {
-                assertThat(exitCode)
-                        .isEqualTo(action.assertExitCode);
-            }
-            assertThat(ret)
-                    .containsSequence(action.assertOutputContains)
-                    .doesNotContain(action.assertOutputDoesNotContain);
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
