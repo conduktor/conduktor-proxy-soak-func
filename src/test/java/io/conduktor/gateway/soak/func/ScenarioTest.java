@@ -236,6 +236,16 @@ public class ScenarioTest {
                 log.info("Executing " + action.getScript());
                 execute("sh", action);
             }
+            case DESCRIBE_KAFKA_PROPERTIES -> {
+                var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
+                Properties properties = clusters.get(action.getKafka());
+                assertThat(properties)
+                        .isNotNull();
+                assertThat(properties.keySet())
+                        .containsAll(action.assertKeys);
+                assertThat(properties.values())
+                        .containsAll(action.assertValues);
+            }
         }
     }
 

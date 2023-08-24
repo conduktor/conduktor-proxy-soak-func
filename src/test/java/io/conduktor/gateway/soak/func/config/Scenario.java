@@ -59,7 +59,8 @@ public class Scenario {
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = BashAction.class, name = "BASH"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
-            @JsonSubTypes.Type(value = StepAction.class, name = "STEP")
+            @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
+            @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES")
     })
     @Data
     @NoArgsConstructor
@@ -198,6 +199,14 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class DescribeKafkaPropertiesAction extends KafkaAction {
+        public List<String> assertKeys = new ArrayList<>();
+        public List<String> assertValues = new ArrayList<>();
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ScriptAction extends Action {
         public String script;
         public Integer assertExitCode;
@@ -261,6 +270,7 @@ public class Scenario {
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS,
         BASH,
-        SH;
+        SH,
+        DESCRIBE_KAFKA_PROPERTIES;
     }
 }

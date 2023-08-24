@@ -6,10 +6,6 @@ docker:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093
-      key.serializer: org.apache.kafka.common.serialization.StringSerializer
-      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
@@ -22,10 +18,6 @@ docker:
       GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969
-      key.serializer: org.apache.kafka.common.serialization.StringSerializer
-      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
@@ -49,6 +41,12 @@ actions:
     gateway: gateway
     names:
       - gateway
+      - teamA
+
+  - type: DESCRIBE_KAFKA_PROPERTIES
+    kafka: teamA
+    assertKeys:
+      - bootstrap.servers
 
   - type: STEP
     description: Step1
