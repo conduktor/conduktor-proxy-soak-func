@@ -133,7 +133,10 @@ public class Scenario {
     public static class FetchAction extends ActionTarget {
         private LinkedList<RecordAssertion> assertions;
         private LinkedHashMap<String, String> properties;
-        private String topic;
+        private int timeout = 1000;
+        private int maxMessages = 100;
+        private Integer assertSize;
+        private List<String> topics;
     }
 
     @Data
@@ -211,7 +214,7 @@ public class Scenario {
         private Object expected;
     }
 
-    public static enum ActionType {
+    public enum ActionType {
         STEP,
         DOCUMENTATION,
         CREATE_TOPICS,

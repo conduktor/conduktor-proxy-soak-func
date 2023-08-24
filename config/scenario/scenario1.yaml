@@ -31,20 +31,47 @@ docker:
 actions:
   - type: STEP
     description: Step1
+    
   - type: DOCUMENTATION
     description: blabla
+    
   - type: CREATE_TOPICS
     target: GATEWAY
     topics:
       - name: encryptedTopic
         replicationFactor: 1
         partitions: 1
+        
   - type: LIST_TOPICS
     target: GATEWAY
     assertDoesNotExist:
       - blabla
     assertExists:
       - encryptedTopic
+
+  - type: PRODUCE
+    target: GATEWAY
+    topic: encryptedTopic
+    messages:
+      - value: 'hello world'
+
+  - type: FETCH
+    target: GATEWAY
+    properties:
+      group.id: bla
+    topics:
+      - encryptedTopic
+    assertSize: 1
+    assertions:
+      - description: confirm hello is back
+        value:
+          operator: isEqualTo
+          expected: 'hello world'
+      - description: confirm blabla does not exists
+        value:
+          operator: isNotEqualTo
+          expected: 'blabla'
+
   - type: DESCRIBE_TOPICS
     target: GATEWAY
     topics:
@@ -53,6 +80,7 @@ actions:
       - name: encryptedTopic
         replicationFactor: 1
         partitions: 1
+
   - type: ADD_INTERCEPTORS
     target: GATEWAY
     interceptors:
@@ -84,17 +112,20 @@ actions:
               }
             ]
           }
+
   - type: LIST_INTERCEPTORS
     target: GATEWAY
     vcluster: clusterA
     assertSize: 1
     assertNames:
       - encryption-interceptor-config
+
   - type: REMOVE_INTERCEPTORS
     target: GATEWAY
     vcluster: clusterA
     names:
       - encryption-interceptor-config
+
   - type: LIST_INTERCEPTORS
     target: GATEWAY
     vcluster: clusterA

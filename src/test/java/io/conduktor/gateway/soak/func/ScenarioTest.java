@@ -22,7 +22,6 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -113,11 +112,13 @@ public class ScenarioTest {
         var mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID));
 
         // Perform actions
+        int id = 0;
         for (var action : actions) {
+            id++;
             var type = action.getType();
             var clientFactory = new ClientFactory();
 
-            log.info("Executing " + action.getType());
+            log.info("[" + id + "] Executing " + action.getType());
 
             switch (type) {
                 case STEP -> {
@@ -188,11 +189,13 @@ public class ScenarioTest {
                 }
                 case FETCH -> {
                     var fetchAction = ((Scenario.FetchAction) action);
-                    var topic = fetchAction.getTopic();
                     final Scenario.Service targetService = getTargetService(kafka, gateway, fetchAction);
                     final Properties properties = properties(targetService, fetchAction.getProperties());
                     try (var consumer = clientFactory.consumer(properties)) {
-                        consumeAndEvaluate(topic, consumer, fetchAction.getAssertions());
+                        var records = KafkaActionUtils.consume(consumer, fetchAction.getTopics(), fetchAction.getMaxMessages(), fetchAction.getTimeout());
+                        assertThat(records.size())
+                                .isGreaterThanOrEqualTo(fetchAction.getAssertSize());
+                        assertRecords(records, fetchAction.getAssertions());
                     }
                 }
                 case ADD_INTERCEPTORS -> {
@@ -265,18 +268,6 @@ public class ScenarioTest {
         }
     }
 
-    private static void consumeAndEvaluate(String topic, KafkaConsumer<String, String> consumer, List<Scenario.RecordAssertion> recordAssertions) {
-        var records = KafkaActionUtils.consume(consumer, topic, recordAssertions.size());
-        assertThat(records.size()).isEqualTo(recordAssertions.size());
-        var i = 0;
-        for (var record : records) {
-            var assertion = recordAssertions.get(i++);
-            if (StringUtils.isNotBlank(assertion.getDescription())) {
-                log.info("Test: " + assertion.getDescription());
-            }
-            assertRecord(record, assertion);
-        }
-    }
 
     private static void configurePlugins(LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
         for (var plugin : plugins.entrySet()) {
@@ -340,16 +331,27 @@ public class ScenarioTest {
 
     }
 
-    private static void assertRecord(ConsumerRecord<String, String> record, Scenario.RecordAssertion recordAssertion) {
-        assertData(record.key(), recordAssertion.getKey());
-        assertData(record.value(), recordAssertion.getValue());
-        if (Objects.nonNull(recordAssertion.getHeaders())) {
-            var recordHeaders = IteratorUtils.toList(record.headers().iterator())
-                    .stream()
-                    .collect(Collectors.toMap(Header::key, Header::value));
-            for (var entry : recordAssertion.getHeaders().entrySet()) {
-                assertTrue(recordHeaders.containsKey(entry.getKey()));
-                assertData(new String(recordHeaders.get(entry.getKey())), entry.getValue());
+    private static void assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
+        for (Scenario.RecordAssertion recordAssertion : recordAssertions) {
+            assertRecords(records, recordAssertion);
+        }
+    }
+
+    private static void assertRecords(List<ConsumerRecord<String, String>> records, Scenario.RecordAssertion recordAssertion) {
+        if (StringUtils.isNotBlank(recordAssertion.getDescription())) {
+            log.info("Test: " + recordAssertion.getDescription());
+        }
+        for (ConsumerRecord<String, String> record : records) {
+            assertData(record.key(), recordAssertion.getKey());
+            assertData(record.value(), recordAssertion.getValue());
+            if (Objects.nonNull(recordAssertion.getHeaders())) {
+                var recordHeaders = IteratorUtils.toList(record.headers().iterator())
+                        .stream()
+                        .collect(Collectors.toMap(Header::key, Header::value));
+                for (var entry : recordAssertion.getHeaders().entrySet()) {
+                    assertTrue(recordHeaders.containsKey(entry.getKey()));
+                    assertData(new String(recordHeaders.get(entry.getKey())), entry.getValue());
+                }
             }
         }
     }

@@ -90,16 +90,12 @@ public class KafkaActionUtils {
         }
     }
 
-    public static <T> List<ConsumerRecord<String, T>> consume(KafkaConsumer<String, T> kafkaConsumer, String topic, int expectedRecords) {
-        return consume(kafkaConsumer, topic, expectedRecords, 10000L);
-    }
-
-    public static <T> List<ConsumerRecord<String, T>> consume(KafkaConsumer<String, T> kafkaConsumer, String topic, int expectedRecords, long timeoutMs) {
-        kafkaConsumer.assign(singletonList(new TopicPartition(topic, 0)));
+    public static <T> List<ConsumerRecord<String, T>> consume(KafkaConsumer<String, T> kafkaConsumer, List<String> topics, int maxRecords, int timeout) {
+        kafkaConsumer.subscribe(topics);
         int recordCount = 0;
         long startTime = System.currentTimeMillis();
         var records = new ArrayList<ConsumerRecord<String, T>>();
-        while (recordCount != expectedRecords && System.currentTimeMillis() < startTime + timeoutMs) {
+        while (recordCount != maxRecords && System.currentTimeMillis() < startTime + timeout) {
             var consumedRecords = kafkaConsumer.poll(Duration.of(2, ChronoUnit.SECONDS));
             recordCount += consumedRecords.count();
             for (var record : consumedRecords) {
