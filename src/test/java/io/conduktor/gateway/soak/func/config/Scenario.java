@@ -7,10 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 @Data
 @NoArgsConstructor
@@ -18,6 +15,7 @@ import java.util.List;
 public class Scenario {
     private String title;
     private Docker docker;
+    private Map<String, Properties> virtualClusters = new HashMap<>();
     private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins;
     private LinkedList<Action> actions;
 
@@ -35,7 +33,13 @@ public class Scenario {
     public static class Service {
         private String image;
         private LinkedHashMap<String, String> environment;
-        private LinkedHashMap<String, String> properties;
+        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+
+        public Properties toProperties() {
+            Properties ret = new Properties();
+            ret.putAll(properties);
+            return ret;
+        }
     }
 
     @JsonTypeInfo(
@@ -46,6 +50,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = FetchAction.class, name = "FETCH"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
+            @JsonSubTypes.Type(value = CreateVirtualClustersAction.class, name = "CREATE_VIRTUAL_CLUSTERS"),
             @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
             @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
             @JsonSubTypes.Type(value = AddInterceptorAction.class, name = "ADD_INTERCEPTORS"),
@@ -61,18 +66,17 @@ public class Scenario {
         private ActionType type;
     }
 
-
     @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ActionTarget extends Action {
-        private Target target;
+    public static class KafkaAction extends Action {
+        public String kafka;
+        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
     }
 
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ListTopicsAction extends ActionTarget {
+    public static class ListTopicsAction extends KafkaAction {
         public Integer assertSize;
         private List<String> assertExists = new ArrayList<>();
         private List<String> assertDoesNotExist = new ArrayList<>();
@@ -82,7 +86,7 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class DescribeTopicsAction extends ActionTarget {
+    public static class DescribeTopicsAction extends KafkaAction {
         public List<String> topics;
 
         @Data
@@ -100,7 +104,7 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class CreateTopicsAction extends ActionTarget {
+    public static class CreateTopicsAction extends KafkaAction {
 
         @Data
         @NoArgsConstructor
@@ -120,7 +124,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class ProduceAction extends ActionTarget {
+    public static class ProduceAction extends KafkaAction {
         private LinkedList<Message> messages;
         private LinkedHashMap<String, String> properties;
         private String topic;
@@ -130,7 +134,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class FetchAction extends ActionTarget {
+    public static class FetchAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions;
         private LinkedHashMap<String, String> properties;
         private int timeout = 1000;
@@ -142,8 +146,15 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class CreateVirtualClustersAction extends GatewayAction {
+        public List<String> names;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class AddInterceptorAction extends ActionTarget {
+    public static class AddInterceptorAction extends GatewayAction {
         private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
     }
 
@@ -151,7 +162,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class RemoveInterceptorAction extends ActionTarget {
+    public static class RemoveInterceptorAction extends GatewayAction {
         public String vcluster;
         private List<String> names = new ArrayList<>();
     }
@@ -160,7 +171,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-    public static class ListInterceptorAction extends ActionTarget {
+    public static class ListInterceptorAction extends GatewayAction {
         public String vcluster;
         public Integer assertSize;
         private List<String> assertNames = new ArrayList<>();
@@ -172,6 +183,11 @@ public class Scenario {
     public static class DocumentationAction extends Action {
         public String description;
     }
+
+    public static class GatewayAction extends Action {
+        public String gateway;
+    }
+
 
     @Data
     @NoArgsConstructor
@@ -218,6 +234,7 @@ public class Scenario {
         STEP,
         DOCUMENTATION,
         CREATE_TOPICS,
+        CREATE_VIRTUAL_CLUSTERS,
         LIST_TOPICS,
         DESCRIBE_TOPICS,
         PRODUCE,
@@ -225,13 +242,6 @@ public class Scenario {
         ADD_INTERCEPTORS,
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS;
-
-
-    }
-
-    public enum Target {
-        KAFKA,
-        GATEWAY
     }
 }
 

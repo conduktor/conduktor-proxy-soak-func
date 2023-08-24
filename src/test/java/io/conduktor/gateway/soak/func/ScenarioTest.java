@@ -2,8 +2,6 @@ package io.conduktor.gateway.soak.func;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
@@ -12,6 +10,7 @@ import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -61,7 +60,6 @@ public class ScenarioTest {
     @BeforeAll
     public void setUp() throws IOException {
         loadScenarios();
-
     }
 
     private static void loadScenarios() throws IOException {
@@ -98,156 +96,150 @@ public class ScenarioTest {
         log.info("Start to test: {}", scenario.getTitle());
         var kafka = scenario.getDocker().getKafka();
         var gateway = scenario.getDocker().getGateway();
+        var clusters = scenario.getVirtualClusters();
+        clusters.put("kafka", kafka.toProperties());
+        clusters.put("gateway", gateway.toProperties());
         var plugins = scenario.getPlugins();
         var actions = scenario.getActions();
 
-        // Start container
         startContainer(kafka, gateway);
 
-        // Configure plugins
         if (Objects.nonNull(plugins)) {
             configurePlugins(plugins);
         }
+        try (var clientFactory = new ClientFactory()) {
+            int id = 0;
+            for (var _action : actions) {
+                step(clusters, clientFactory, ++id, _action);
+            }
+        }
+    }
 
-        var mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID));
+    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int id, Scenario.Action _action) throws InterruptedException, ExecutionException {
+        log.info("[" + id + "] Executing " + _action.getType());
 
-        // Perform actions
-        int id = 0;
-        for (var action : actions) {
-            id++;
-            var type = action.getType();
-            var clientFactory = new ClientFactory();
+        switch (_action.getType()) {
+            case STEP -> {
+                var action = ((Scenario.StepAction) _action);
+                log.info(action.description);
 
-            log.info("[" + id + "] Executing " + action.getType());
+            }
+            case DOCUMENTATION -> {
+                var action = ((Scenario.DocumentationAction) _action);
+                log.debug(action.description);
+            }
+            case CREATE_VIRTUAL_CLUSTERS -> {
+                var action = ((Scenario.CreateVirtualClustersAction) _action);
+                List<String> names = action.getNames();
+                String username = "sa";
+                for (String name : names) {
+                    VClusterCreateResponse response = createVirtualCluster(name, username);
 
-            switch (type) {
-                case STEP -> {
-                    var stepAction = ((Scenario.StepAction) action);
-                    log.info(stepAction.description);
+                    Properties properties = clusters.getOrDefault(name, new Properties());
+                    properties.put("bootstrap.servers", "localhost:6969");
+                    properties.put("security.protocol", "SASL_PLAINTEXT");
+                    properties.put("sasl.mechanism", "PLAIN");
+                    properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
+                    clusters.put(name, properties);
                 }
-                case DOCUMENTATION -> {
-                    var documentationAction = ((Scenario.DocumentationAction) action);
-                    log.debug(documentationAction.description);
-                }
-                case CREATE_TOPICS -> {
-                    var createTopicAction = ((Scenario.CreateTopicsAction) action);
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, createTopicAction);
-                    final Properties properties = properties(targetService, createTopicAction.getProperties());
-                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                        for (Scenario.CreateTopicsAction.CreateTopicRequest topic : createTopicAction.getTopics()) {
-                            createTopic(kafkaAdminClient,
-                                    topic.getName(),
-                                    topic.getPartitions(),
-                                    topic.getReplicationFactor());
-                        }
-                    }
-                }
-                case LIST_TOPICS -> {
-                    var listTopicsAction = ((Scenario.ListTopicsAction) action);
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, listTopicsAction);
-                    final Properties properties = properties(targetService, targetService.getProperties());
-                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                        Set<String> topics = kafkaAdminClient.listTopics().names().get();
-                        if (Objects.nonNull(listTopicsAction.assertSize)) {
-                            assertThat(topics)
-                                    .hasSize(listTopicsAction.assertSize);
-                        }
-                        assertThat(topics)
-                                .containsAll(listTopicsAction.getAssertExists());
-                        assertThat(topics)
-                                .doesNotContainAnyElementsOf(listTopicsAction.getAssertDoesNotExist());
-                    }
-                }
-                case DESCRIBE_TOPICS -> {
-                    var describeTopicsAction = ((Scenario.DescribeTopicsAction) action);
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, describeTopicsAction);
-                    final Properties properties = properties(targetService, targetService.getProperties());
-                    try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
-                        Map<String, TopicDescription> topics = kafkaAdminClient
-                                .describeTopics(describeTopicsAction.topics)
-                                .allTopicNames()
-                                .get();
-                        for (DescribeTopicsActionAssertions assertion : describeTopicsAction.getAssertions()) {
-                            assertThat(topics)
-                                    .containsKey(assertion.getName());
-                            TopicDescription topicDescription = topics.get(assertion.getName());
-                            assertThat(topicDescription.partitions())
-                                    .hasSize(assertion.getPartitions());
-                            assertThat(topicDescription.partitions().get(0).replicas())
-                                    .hasSize(assertion.getReplicationFactor());
-                        }
-                    }
-                }
-                case PRODUCE -> {
-                    var produceAction = ((Scenario.ProduceAction) action);
-                    var topic = produceAction.getTopic();
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, produceAction);
-                    final Properties properties = properties(targetService, produceAction.getProperties());
-                    try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
-                        produce(topic, produceAction.getMessages(), kafkaProducer);
-                    }
-                }
-                case FETCH -> {
-                    var fetchAction = ((Scenario.FetchAction) action);
-                    final Scenario.Service targetService = getTargetService(kafka, gateway, fetchAction);
-                    final Properties properties = properties(targetService, fetchAction.getProperties());
-                    try (var consumer = clientFactory.consumer(properties)) {
-                        var records = KafkaActionUtils.consume(consumer, fetchAction.getTopics(), fetchAction.getMaxMessages(), fetchAction.getTimeout());
-                        assertThat(records.size())
-                                .isGreaterThanOrEqualTo(fetchAction.getAssertSize());
-                        assertRecords(records, fetchAction.getAssertions());
-                    }
-                }
-                case ADD_INTERCEPTORS -> {
-                    var addInterceptors = ((Scenario.AddInterceptorAction) action);
-                    configurePlugins(addInterceptors.getInterceptors());
-                }
-                case REMOVE_INTERCEPTORS -> {
-                    var removeInterceptors = ((Scenario.RemoveInterceptorAction) action);
-                    for (String name : removeInterceptors.getNames()) {
-                        removePlugin(removeInterceptors.vcluster, name);
-                    }
-                }
-                case LIST_INTERCEPTORS -> {
-                    var listInterceptors = ((Scenario.ListInterceptorAction) action);
-                    TenantInterceptorsResponse response = getPlugins(listInterceptors.vcluster);
-
-                    if (Objects.nonNull(listInterceptors.assertSize)) {
-                        assertThat(response.interceptors)
-                                .hasSize(listInterceptors.assertSize);
-                    }
-                    for (String assertion : listInterceptors.getAssertNames()) {
-                        assertThat(response.interceptors)
-                                .extracting(PluginResponse::getName)
-                                .contains(assertion);
+            }
+            case CREATE_TOPICS -> {
+                var action = ((Scenario.CreateTopicsAction) _action);
+                Properties properties = getProperties(clusters, action);
+                try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                    for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
+                        createTopic(kafkaAdminClient,
+                                topic.getName(),
+                                topic.getPartitions(),
+                                topic.getReplicationFactor());
                     }
                 }
             }
-            clientFactory.close();
+            case LIST_TOPICS -> {
+                var action = ((Scenario.ListTopicsAction) _action);
+                try (var kafkaAdminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                    Set<String> topics = kafkaAdminClient.listTopics().names().get();
+                    if (Objects.nonNull(action.assertSize)) {
+                        assertThat(topics)
+                                .hasSize(action.assertSize);
+                    }
+                    assertThat(topics)
+                            .containsAll(action.getAssertExists());
+                    assertThat(topics)
+                            .doesNotContainAnyElementsOf(action.getAssertDoesNotExist());
+                }
+            }
+            case DESCRIBE_TOPICS -> {
+                var action = ((Scenario.DescribeTopicsAction) _action);
+                try (var kafkaAdminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                    Map<String, TopicDescription> topics = kafkaAdminClient
+                            .describeTopics(action.topics)
+                            .allTopicNames()
+                            .get();
+                    for (DescribeTopicsActionAssertions assertion : action.getAssertions()) {
+                        assertThat(topics)
+                                .containsKey(assertion.getName());
+                        TopicDescription topicDescription = topics.get(assertion.getName());
+                        assertThat(topicDescription.partitions())
+                                .hasSize(assertion.getPartitions());
+                        assertThat(topicDescription.partitions().get(0).replicas())
+                                .hasSize(assertion.getReplicationFactor());
+                    }
+                }
+            }
+            case PRODUCE -> {
+                var action = ((Scenario.ProduceAction) _action);
+                try (var kafkaProducer = clientFactory.kafkaProducer(getProperties(clusters, action))) {
+                    produce(action.getTopic(), action.getMessages(), kafkaProducer);
+                }
+            }
+            case FETCH -> {
+                var action = ((Scenario.FetchAction) _action);
+                try (var consumer = clientFactory.consumer(getProperties(clusters, action))) {
+                    var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
+                    assertThat(records.size())
+                            .isGreaterThanOrEqualTo(action.getAssertSize());
+                    assertRecords(records, action.getAssertions());
+                }
+            }
+            case ADD_INTERCEPTORS -> {
+                var action = ((Scenario.AddInterceptorAction) _action);
+                configurePlugins(action.getInterceptors());
+            }
+            case REMOVE_INTERCEPTORS -> {
+                var action = ((Scenario.RemoveInterceptorAction) _action);
+                for (String name : action.getNames()) {
+                    removePlugin(action.vcluster, name);
+                }
+            }
+            case LIST_INTERCEPTORS -> {
+                var action = ((Scenario.ListInterceptorAction) _action);
+                TenantInterceptorsResponse response = getPlugins(action.vcluster);
+
+                if (Objects.nonNull(action.assertSize)) {
+                    assertThat(response.interceptors)
+                            .hasSize(action.assertSize);
+                }
+                for (String assertion : action.getAssertNames()) {
+                    assertThat(response.interceptors)
+                            .extracting(PluginResponse::getName)
+                            .contains(assertion);
+                }
+            }
         }
     }
 
-    private Scenario.Service getTargetService(Scenario.Service kafka, Scenario.Service gateway, Scenario.ActionTarget target) {
-        if (target.getTarget() == null) {
-            throw new RuntimeException("Target is required for " + target.getType());
+    private Properties getProperties(Map<String, Properties> virtualClusters, Scenario.KafkaAction action) {
+        if (StringUtils.isBlank(action.getKafka())) {
+            throw new RuntimeException("kafka is required for " + action.getType());
         }
-        switch (target.getTarget()) {
-            case KAFKA:
-                return kafka;
-            case GATEWAY:
-                return gateway;
-            default:
-                throw new RuntimeException(target + " is not supported");
-        }
-    }
-
-    private Properties properties(Scenario.Service service, LinkedHashMap<String, String> properties) {
         Properties p = new Properties();
-        if (service.getProperties() != null) {
-            p.putAll(service.getProperties());
+        if (action.getProperties() != null) {
+            p.putAll(action.getProperties());
         }
-        if (properties != null) {
-            p.putAll(properties);
+        Properties t = virtualClusters.get(action.getKafka());
+        if (t != null) {
+            p.putAll(t);
         }
         return p;
     }
@@ -296,15 +288,48 @@ public class ScenarioTest {
         }
     }
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VClusterCreateRequest {
+        public long lifeTimeSeconds = 7776000;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VClusterCreateResponse {
+        public String token;
+    }
+
+    private static VClusterCreateResponse createVirtualCluster(String vcluster, String username) {
+        log.info("Creating virtual cluster " + vcluster);
+        Response response = given()
+                .baseUri("http://localhost:8888/admin/vclusters/v1")
+                .auth()
+                .basic(ADMIN_USER, ADMIN_PASSWORD)
+                .contentType(ContentType.JSON)
+                .body(new VClusterCreateRequest()).
+                when()
+                .post("/vcluster/{vcluster}/username/{username}", vcluster, username).
+                then()
+                .statusCode(200)
+                .extract()
+                .response();
+        System.out.println(response.asPrettyString());
+        return response
+                .as(VClusterCreateResponse.class);
+    }
+
     private static void removePlugin(String vcluster, String name) {
         given()
                 .baseUri("http://localhost:8888/admin/interceptors/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
-                .contentType(ContentType.JSON)
-                .when()
-                .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name)
-                .then()
+                .contentType(ContentType.JSON).
+                when()
+                .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
+                then()
                 .statusCode(200);
     }
 
@@ -320,10 +345,10 @@ public class ScenarioTest {
                 .baseUri("http://localhost:8888/admin/interceptors/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
-                .contentType(ContentType.JSON)
-                .when()
-                .get("/vcluster/{vcluster}/interceptors", vcluster)
-                .then()
+                .contentType(ContentType.JSON).
+                when()
+                .get("/vcluster/{vcluster}/interceptors", vcluster).
+                then()
                 .statusCode(200)
                 .extract()
                 .response()

@@ -18,7 +18,8 @@ docker:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
       GATEWAY_ADVERTISED_HOST: localhost
-      GATEWAY_SECURITY_PROTOCOL: NONE
+      GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969
       key.serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -29,34 +30,39 @@ docker:
       enable.auto.commit: false
       client.id: clientId
 actions:
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway
+    names:
+      - gateway
+
   - type: STEP
     description: Step1
-    
+
   - type: DOCUMENTATION
     description: blabla
-    
+
   - type: CREATE_TOPICS
-    target: GATEWAY
+    kafka: gateway
     topics:
       - name: encryptedTopic
         replicationFactor: 1
         partitions: 1
-        
+
   - type: LIST_TOPICS
-    target: GATEWAY
+    kafka: gateway
     assertDoesNotExist:
       - blabla
     assertExists:
       - encryptedTopic
 
   - type: PRODUCE
-    target: GATEWAY
+    kafka: gateway
     topic: encryptedTopic
     messages:
       - value: 'hello world'
 
   - type: FETCH
-    target: GATEWAY
+    kafka: gateway
     properties:
       group.id: bla
     topics:
@@ -73,7 +79,7 @@ actions:
           expected: 'blabla'
 
   - type: DESCRIBE_TOPICS
-    target: GATEWAY
+    kafka: gateway
     topics:
       - encryptedTopic
     assertions:
@@ -82,7 +88,7 @@ actions:
         partitions: 1
 
   - type: ADD_INTERCEPTORS
-    target: GATEWAY
+    gateway: gateway
     interceptors:
       clusterA:
         encryption-interceptor-config:
@@ -114,19 +120,19 @@ actions:
           }
 
   - type: LIST_INTERCEPTORS
-    target: GATEWAY
+    gateway: gateway
     vcluster: clusterA
     assertSize: 1
     assertNames:
       - encryption-interceptor-config
 
   - type: REMOVE_INTERCEPTORS
-    target: GATEWAY
+    gateway: gateway
     vcluster: clusterA
     names:
       - encryption-interceptor-config
 
   - type: LIST_INTERCEPTORS
-    target: GATEWAY
+    gateway: gateway
     vcluster: clusterA
     assertSize: 0
