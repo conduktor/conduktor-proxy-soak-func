@@ -150,10 +150,21 @@ public class ScenarioTest {
                 var action = ((Scenario.CreateTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
-                        createTopic(adminClient,
-                                topic.getName(),
-                                topic.getPartitions(),
-                                topic.getReplicationFactor());
+                        try {
+                            createTopic(adminClient,
+                                    topic.getName(),
+                                    topic.getPartitions(),
+                                    topic.getReplicationFactor());
+                            if (action.getAssertError() != null) {
+                                Assertions.fail("Expected an error");
+                            }
+                        } catch (Exception e) {
+                            if (!action.getAssertErrorMessages().isEmpty()) {
+                                assertThat(e.getMessage())
+                                        .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
+                            }
+                            log.warn(topic + " creation failed", e);
+                        }
                     }
                 }
             }

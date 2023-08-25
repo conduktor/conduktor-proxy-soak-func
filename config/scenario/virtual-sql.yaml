@@ -30,6 +30,16 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    assertError: true
+    assertErrorMessages:
+      - Topic name is invalid
+    topics:
+      - name: carscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscars
+        replicationFactor: 1
+        partitions: 1
+
+  - type: CREATE_TOPICS
+    kafka: teamA
     topics:
       - name: cars
         replicationFactor: 1
