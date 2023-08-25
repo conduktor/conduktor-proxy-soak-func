@@ -14,10 +14,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -25,6 +23,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,14 +39,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeContainerUtils.startContainer;
 import static io.conduktor.gateway.soak.func.utils.DockerComposeContainerUtils.stopContainer;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 @Slf4j
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -195,7 +192,8 @@ public class ScenarioTest {
             }
             case PRODUCE -> {
                 var action = ((Scenario.ProduceAction) _action);
-                try (var kafkaProducer = clientFactory.kafkaProducer(getProperties(clusters, action))) {
+                Properties properties = getProperties(clusters, action);
+                try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
                     produce(action.getTopic(), action.getMessages(), kafkaProducer);
                 }
             }
@@ -203,6 +201,9 @@ public class ScenarioTest {
                 var action = ((Scenario.ConsumeAction) _action);
                 try (var consumer = clientFactory.consumer(getProperties(clusters, action))) {
                     var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
+                    if (action.isShowRecords()) {
+                        records.stream().forEach(System.out::println);
+                    }
                     if (Objects.nonNull(action.getAssertSize())) {
                         assertThat(records.size())
                                 .isGreaterThanOrEqualTo(action.getAssertSize());
@@ -415,85 +416,83 @@ public class ScenarioTest {
     }
 
     private static void assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
+
+        List<String> keys = records.stream().map(ConsumerRecord::key).toList();
+        List<String> values = records.stream().map(ConsumerRecord::value).toList();
+        List<Header> headers = records.stream().flatMap(r -> getHeaders(r).stream()).toList();
+
+
         for (Scenario.RecordAssertion recordAssertion : recordAssertions) {
-            assertRecords(records, recordAssertion);
-        }
-    }
-
-    private static void assertRecords(List<ConsumerRecord<String, String>> records, Scenario.RecordAssertion recordAssertion) {
-        if (StringUtils.isNotBlank(recordAssertion.getDescription())) {
-            log.info("Test: " + recordAssertion.getDescription());
-        }
-        for (ConsumerRecord<String, String> record : records) {
-            assertData(record.key(), recordAssertion.getKey());
-            assertData(record.value(), recordAssertion.getValue());
-            if (Objects.nonNull(recordAssertion.getHeaders())) {
-                var recordHeaders = IteratorUtils.toList(record.headers().iterator())
-                        .stream()
-                        .collect(Collectors.toMap(Header::key, Header::value));
-                for (var entry : recordAssertion.getHeaders().entrySet()) {
-                    assertTrue(recordHeaders.containsKey(entry.getKey()));
-                    assertData(new String(recordHeaders.get(entry.getKey())), entry.getValue());
-                }
+            boolean validKey = validate(recordAssertion.getKey(), keys);
+            boolean validValues = validate(recordAssertion.getValue(), values);
+            boolean validHeader = validateHeaders(recordAssertion, headers);
+            if (StringUtils.isNotBlank(recordAssertion.getDescription())) {
+                log.info("Test: " + recordAssertion.getDescription());
+            }
+            if ((validKey && validValues && validHeader) == false) {
+                log.info("Assertion failed");
+                log.info("Key: " + validKey);
+                log.info("Values: " + validValues);
+                log.info("Header: " + validHeader);
+                Assertions.fail(recordAssertion.getDescription() + " failed");
             }
         }
     }
 
-    private static void assertData(String data, Scenario.Assertion assertion) {
-        if (Objects.isNull(assertion)) {
-            return;
+    private static boolean validateHeaders(Scenario.RecordAssertion recordAssertion, List<Header> headers) {
+        if (recordAssertion.getHeaders() == null) {
+            return true;
         }
-        var expected = assertion.getExpected();
-        var assertMethod = assertion.getOperator();
-        if (StringUtils.isBlank(expected)) {
-            return;
+        for (String headerKey : recordAssertion.getHeaders().keySet()) {
+            Scenario.Assertion headerAssertion = recordAssertion.getHeaders().get(headerKey);
+            if (headerAssertion == null) {
+                return false;
+            }
+            List<String> headerValues = headers.stream().filter(e -> headerKey.equals(e.key())).map(h -> new String(h.value())).toList();
+            if (validate(headerAssertion, headerValues)) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    public static boolean validate(Scenario.Assertion assertion, List<String> data) {
+        if (assertion == null) {
+            return true;
+        }
+        return data.stream().filter(value -> validate(assertion, value)).findFirst().isPresent();
+    }
+
+    public static boolean validate(Scenario.Assertion assertion, String data) {
+        String expected = assertion.getExpected();
+        return switch (assertion.getOperator()) {
+            case "satisfies" -> satisfies(data, expected);
+            case "isBlank" -> StringUtils.isBlank(data);
+            case "isNotBlank" -> StringUtils.isNotBlank(data);
+            case "containsIgnoreCase" -> StringUtils.containsIgnoreCase(data, expected);
+            case "contains" -> StringUtils.contains(data, expected);
+            case "doesNotContain" -> !StringUtils.contains(data, expected);
+            case "doesNotContainIgnoringCase" -> !StringUtils.containsIgnoreCase(data, expected);
+            default -> throw new RuntimeException(assertion.getOperator() + " is not supported");
+        };
+    }
+
+    private static List<Header> getHeaders(ConsumerRecord<String, String> r) {
+        return r.headers() == null ? List.of() : List.of(r.headers().toArray());
+    }
+
+    private static boolean satisfies(String data, String expected) {
         try {
+            var dataAsMap = MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
+            });
+            var parser = new SpelExpressionParser();
+            var context = new StandardEvaluationContext(dataAsMap);
+            context.setVariables(dataAsMap);
 
-            switch (assertMethod) {
-                case "satisfied" -> {
-                    try {
-                        var dataAsMap = MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
-                        });
-                        var parser = new SpelExpressionParser();
-                        var context = new StandardEvaluationContext(dataAsMap);
-                        context.setVariables(dataAsMap);
+            return parser.parseExpression(String.valueOf(expected)).getValue(context, Boolean.class);
 
-                        var satisfied = parser.parseExpression(String.valueOf(expected)).getValue(context, Boolean.class);
-                        assertEquals(Boolean.TRUE, satisfied);
-                    } catch (Exception e) {
-
-                    }
-                }
-                case "isBlank" -> {
-                    assertThat(data)
-                            .isBlank();
-                }
-                case "isNotBlank" -> {
-                    assertThat(data)
-                            .isNotBlank();
-                }
-                case "containsIgnoreCase" -> {
-                    assertThat(data)
-                            .containsIgnoringCase(expected);
-                }
-                case "contains" -> {
-                    assertThat(data)
-                            .contains(expected);
-                }
-                case "doesNotContain" -> {
-                    assertThat(data)
-                            .doesNotContain(expected);
-                }
-                case "doesNotContainIgnoringCase" -> {
-                    assertThat(data)
-                            .doesNotContainIgnoringCase(expected);
-                }
-            }
-        } catch (Throwable ex) {
-            fail(ExceptionUtils.getRootCause(ex));
+        } catch (Exception e) {
+            return false;
         }
     }
-
-
 }

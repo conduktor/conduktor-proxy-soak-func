@@ -148,9 +148,10 @@ public class Scenario {
     public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions;
         private LinkedHashMap<String, String> properties;
-        private int timeout = 1000;
+        private int timeout = 10000;
         private int maxMessages = 100;
         private Integer assertSize;
+        private boolean showRecords = false;
         private List<String> topics;
     }
 

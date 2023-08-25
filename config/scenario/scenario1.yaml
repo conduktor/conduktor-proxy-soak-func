@@ -22,22 +22,6 @@ docker:
       enable.auto.commit: false
       client.id: clientId
 actions:
-  - type: BASH
-    script: echo 'hello'
-    assertOutputContains:
-      -  hello
-    assertOutputDoesNotContain:
-      -  blabla
-
-  - type: SH
-    script: >
-      echo 'glou'; 
-      exit 3;
-    assertExitCode: 3
-    assertOutputContains:
-      -  glou
-    assertOutputDoesNotContain:
-      -  blabla
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway
@@ -50,50 +34,31 @@ actions:
     assertKeys:
       - bootstrap.servers
 
-  - type: STEP
-    description: Step1
-
-  - type: DOCUMENTATION
-    description: blabla
-
-  - type: MARKDOWN
-    markdown: |
-      Run the full setup 
-
-      ```bash
-      docker compose up --wait --detach
-      ```
-
-      Run the demo
-
-      ```sh
-      ./run.sh
-      ```
-
   - type: CREATE_TOPICS
-    kafka: gateway
+    kafka: teamA
     topics:
       - name: encryptedTopic
         replicationFactor: 1
         partitions: 1
 
   - type: LIST_TOPICS
-    kafka: gateway
+    kafka: teamA
     assertDoesNotExist:
-      - blabla
+      - blabla123
     assertExists:
       - encryptedTopic
 
   - type: PRODUCE
-    kafka: gateway
+    kafka: teamA
     topic: encryptedTopic
     messages:
       - value: '{"msg": "hello world"}'
 
   - type: CONSUME
-    kafka: gateway
+    kafka: teamA
     properties:
-      group.id: bla
+      group.id: consume-hello
+      auto.offset.reset: earliest
     topics:
       - encryptedTopic
     assertSize: 1
@@ -108,7 +73,7 @@ actions:
           expected: 'blabla'
 
   - type: DESCRIBE_TOPICS
-    kafka: gateway
+    kafka: teamA
     topics:
       - encryptedTopic
     assertions:
@@ -119,7 +84,7 @@ actions:
   - type: ADD_INTERCEPTORS
     gateway: gateway
     interceptors:
-      clusterA:
+      teamA:
         encryption:
           pluginClass: "io.conduktor.gateway.interceptor.EncryptPlugin"
           "priority": 1
@@ -150,24 +115,34 @@ actions:
 
   - type: LIST_INTERCEPTORS
     gateway: gateway
-    vcluster: clusterA
+    vcluster: teamA
     assertSize: 1
     assertNames:
       - encryption
 
   - type: PRODUCE
-    kafka: gateway
+    kafka: teamA
     topic: encryptedTopic
     messages:
       - value: '{"name":"conduktor","username":"test@conduktor.io","password":"password1","visa":"visa123456","address":"Conduktor Towers, London"}'
 
   - type: CONSUME
-    kafka: gateway
+    kafka: teamA
     topics:
       - encryptedTopic
     properties:
-      group.id: blabla
+      group.id: consume-after-encryption
+      auto.offset.reset: earliest
+    assertSize: 2
     assertions:
+      - description: confirm hello is back
+        value:
+          operator: containsIgnoreCase
+          expected: 'hello world'
+      - description: confirm password does not exists
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'password1'
       - description: confirm encryption at rest - only 2 fields password and visa are encrypted
         value:
           operator: satisfies
@@ -175,13 +150,50 @@ actions:
 
   - type: REMOVE_INTERCEPTORS
     gateway: gateway
-    vcluster: clusterA
+    vcluster: teamA
     names:
       - encryption
 
   - type: LIST_INTERCEPTORS
     gateway: gateway
-    vcluster: clusterA
+    vcluster: teamA
     assertSize: 0
+
+  - type: STEP
+    description: Step1
+
+  - type: DOCUMENTATION
+    description: blabla
+
+  - type: MARKDOWN
+    markdown: |
+      Run the full setup 
+
+      ```bash
+      docker compose up --wait --detach
+      ```
+
+      Run the demo
+
+      ```sh
+      ./run.sh
+      ```
+
+  - type: BASH
+    script: echo 'hello'
+    assertOutputContains:
+      -  hello
+    assertOutputDoesNotContain:
+      -  blabla
+
+  - type: SH
+    script: >
+      echo 'glou'; 
+      exit 3;
+    assertExitCode: 3
+    assertOutputContains:
+      -  glou
+    assertOutputDoesNotContain:
+      -  blabla
 
   - type: SUCCESS

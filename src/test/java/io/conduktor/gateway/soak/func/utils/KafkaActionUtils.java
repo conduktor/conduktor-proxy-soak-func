@@ -11,6 +11,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.header.Header;
 import org.assertj.core.api.Assertions;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -68,10 +69,16 @@ public class KafkaActionUtils {
 
 
     public static <T> void produce(KafkaProducer<String, T> kafkaProducer, String topic, String key, T value, List<Header> headers) throws ExecutionException, InterruptedException {
-        var recordRequest = new ProducerRecord<>(topic, key, value);
-        headers.forEach(header -> recordRequest.headers().add(header));
+        ProducerRecord<String, T> recordRequest = p(topic, key, value, headers);
         var recordMetadata = kafkaProducer.send(recordRequest).get();
         Assertions.assertThat(recordMetadata.hasOffset()).isTrue();
+    }
+
+    @NotNull
+    private static <T> ProducerRecord<String, T> p(String topic, String key, T value, List<Header> headers) {
+        var recordRequest = new ProducerRecord<>(topic, key, value);
+        headers.forEach(header -> recordRequest.headers().add(header));
+        return recordRequest;
     }
 
     public static <T> void produce(KafkaProducer<String, T> kafkaProducer, String topic, T value) throws ExecutionException, InterruptedException {
