@@ -104,8 +104,8 @@ public class Scenario {
         @AllArgsConstructor
         public static final class DescribeTopicsActionAssertions {
             private String name;
-            private int partitions;
-            private int replicationFactor;
+            private Integer partitions;
+            private Integer replicationFactor;
         }
 
         public List<DescribeTopicsActionAssertions> assertions;

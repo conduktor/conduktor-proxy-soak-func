@@ -1,0 +1,112 @@
+title: Virtual SQL
+docker:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway:
+    image: ghcr.io/conduktor/conduktor-gateway-distro
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
+      GATEWAY_ADVERTISED_HOST: localhost
+      GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+actions:
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway
+    names:
+      - teamA
+
+  - type: CREATE_TOPICS
+    kafka: teamA
+    topics:
+      - name: cars
+        replicationFactor: 1
+        partitions: 1
+
+  - type: LIST_TOPICS
+    kafka: teamA
+    assertExists:
+      - cars
+
+  - type: PRODUCE
+    kafka: teamA
+    topic: cars
+    messages:
+      - value: '{"type":"Sports","price":75,"color":"blue"}'
+      - value: '{"type":"SUV","price":55,"color":"red"}'
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: consume-cars
+      auto.offset.reset: earliest
+    topics:
+      - cars
+    assertSize: 2
+    assertions:
+      - description: confirm Sport
+        value:
+          operator: containsIgnoreCase
+          expected: 'Sports'
+      - description: confirm SUV
+        value:
+          operator: containsIgnoreCase
+          expected: 'SUV'
+
+  - type: CREATE_TOPICS
+    kafka: teamA
+    topics:
+      - name: red-cars
+        replicationFactor: 1
+        partitions: 1
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway
+    interceptors:
+      teamA:
+        red-cars:
+          "pluginClass": "io.conduktor.gateway.interceptor.VirtualSqlTopicPlugin"
+          "priority": "100"
+          "config": {
+            "virtualTopic": "red-cars",
+            "statement": "SELECT type, price as price FROM cars WHERE color = 'red'"
+          }
+
+  - type: LIST_INTERCEPTORS
+    gateway: gateway
+    vcluster: teamA
+    assertSize: 1
+    assertNames:
+      - red-cars
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: consume-red-cars
+      auto.offset.reset: earliest
+    topics:
+      - red-cars
+    assertSize: 1
+    assertions:
+      - description: confirm Sport is not there because it's not red
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'Sports'
+      - description: confirm SUV is there because it's red
+        value:
+          operator: containsIgnoreCase
+          expected: 'SUV'
+
+  - type: SUCCESS

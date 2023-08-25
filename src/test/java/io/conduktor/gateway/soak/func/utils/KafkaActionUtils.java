@@ -56,6 +56,7 @@ public class KafkaActionUtils {
             if (!topicFound) {
                 throw new RuntimeException("Topic " + topicName + " not created in " + WAITING_TIMEOUT + "ms");
             }
+            log.info("Topic " + topicName + " created");
             return topicName;
         } catch (Exception exception) {
             if (exception.getCause() instanceof TimeoutException) {

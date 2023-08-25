@@ -148,10 +148,9 @@ public class ScenarioTest {
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
-                Properties properties = getProperties(clusters, action);
-                try (var kafkaAdminClient = clientFactory.kafkaAdmin(properties)) {
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
-                        createTopic(kafkaAdminClient,
+                        createTopic(adminClient,
                                 topic.getName(),
                                 topic.getPartitions(),
                                 topic.getReplicationFactor());
@@ -160,22 +159,27 @@ public class ScenarioTest {
             }
             case LIST_TOPICS -> {
                 var action = ((Scenario.ListTopicsAction) _action);
-                try (var kafkaAdminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
-                    Set<String> topics = kafkaAdminClient.listTopics().names().get();
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                    Set<String> topics = adminClient.listTopics().names().get();
+                    System.out.println(topics);
                     if (Objects.nonNull(action.assertSize)) {
                         assertThat(topics)
                                 .hasSize(action.assertSize);
                     }
-                    assertThat(topics)
-                            .containsAll(action.getAssertExists());
-                    assertThat(topics)
-                            .doesNotContainAnyElementsOf(action.getAssertDoesNotExist());
+                    if (!action.getAssertExists().isEmpty()) {
+                        assertThat(topics)
+                                .containsAll(action.getAssertExists());
+                    }
+                    if (!action.getAssertDoesNotExist().isEmpty()) {
+                        assertThat(topics)
+                                .doesNotContainAnyElementsOf(action.getAssertDoesNotExist());
+                    }
                 }
             }
             case DESCRIBE_TOPICS -> {
                 var action = ((Scenario.DescribeTopicsAction) _action);
-                try (var kafkaAdminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
-                    Map<String, TopicDescription> topics = kafkaAdminClient
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                    Map<String, TopicDescription> topics = adminClient
                             .describeTopics(action.topics)
                             .allTopicNames()
                             .get();
@@ -183,18 +187,22 @@ public class ScenarioTest {
                         assertThat(topics)
                                 .containsKey(assertion.getName());
                         TopicDescription topicDescription = topics.get(assertion.getName());
-                        assertThat(topicDescription.partitions())
-                                .hasSize(assertion.getPartitions());
-                        assertThat(topicDescription.partitions().get(0).replicas())
-                                .hasSize(assertion.getReplicationFactor());
+                        if (assertion.getPartitions() != null) {
+                            assertThat(topicDescription.partitions())
+                                    .hasSize(assertion.getPartitions());
+                        }
+                        if (assertion.getReplicationFactor() != null) {
+                            assertThat(topicDescription.partitions().get(0).replicas())
+                                    .hasSize(assertion.getReplicationFactor());
+                        }
                     }
                 }
             }
             case PRODUCE -> {
                 var action = ((Scenario.ProduceAction) _action);
                 Properties properties = getProperties(clusters, action);
-                try (var kafkaProducer = clientFactory.kafkaProducer(properties)) {
-                    produce(action.getTopic(), action.getMessages(), kafkaProducer);
+                try (var producer = clientFactory.kafkaProducer(properties)) {
+                    produce(action.getTopic(), action.getMessages(), producer);
                 }
             }
             case CONSUME -> {
@@ -250,10 +258,14 @@ public class ScenarioTest {
                 Properties properties = clusters.get(action.getKafka());
                 assertThat(properties)
                         .isNotNull();
-                assertThat(properties.keySet())
-                        .containsAll(action.assertKeys);
-                assertThat(properties.values())
-                        .containsAll(action.assertValues);
+                if (!action.assertKeys.isEmpty()) {
+                    assertThat(properties.keySet())
+                            .containsAll(action.assertKeys);
+                }
+                if (!action.assertValues.isEmpty()) {
+                    assertThat(properties.values())
+                            .containsAll(action.assertValues);
+                }
             }
         }
     }
