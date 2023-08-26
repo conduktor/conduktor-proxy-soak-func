@@ -14,8 +14,8 @@ services:
       retries: 25
 
   kafka1:
-    image: ${CP_IMAGE}
     hostname: kafka1
+    container_name: kafka1
     ports:
       - "29092:29092"
     depends_on:
@@ -41,8 +41,8 @@ services:
       retries: 25
 
   kafka2:
-    image: ${CP_IMAGE}
     hostname: kafka2
+    container_name: kafka2
     ports:
       - "29093:29093"
     depends_on:
@@ -82,9 +82,9 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
 
-  conduktor-gateway:
-    image: ${GATEWAY_IMAGE}
-    hostname: conduktor-gateway
+  gateway:
+    hostname: gateway
+    container_name: gateway
     depends_on:
       kafka1:
         condition: service_healthy
@@ -97,11 +97,11 @@ services:
       - "8888:8888"
     environment:
         a: b
-    volumes:
-      - type: bind
-        source: "./config/tls"
-        target: /config/tls
-        read_only: true
+#    volumes:
+#      - type: bind
+#        source: "./config/tls"
+#        target: /config/tls
+#        read_only: true
     healthcheck:
       test: curl localhost:8888/health
       interval: 5s

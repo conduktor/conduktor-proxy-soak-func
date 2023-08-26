@@ -69,31 +69,31 @@ actions:
     messages:
       - value: '{"msg":"hello world"}'
 
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: consume-should-be-empty
+      auto.offset.reset: earliest
+    topics:
+      - users
+    assertSize: 0
+
   - type: BASH
     kafka: teamA
+    showOutput: true
     script: |
-      
-      env 
-      
-      echo 'echo "BOOTSTRAP_SERVERS = ${BOOTSTRAP_SERVERS}"' > /tmp/floflo
-      echo "BOOTSTRAP_SERVERS = ${BOOTSTRAP_SERVERS}"
-      
-      env > /tmp/florent
-      
+      PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       echo '{ 
           "name": "conduktor",
           "username": "test@conduktor.io",
           "password": "password1",
           "visa": "visa123456",
           "address": "Conduktor Towers, London" 
-      }' | jq -c | docker exec -T schema-registry \
-          kafka-json-schema-console-producer  \
+      }' | jq -c | kafka-json-schema-console-producer  \
               --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
-              --producer-property security.protocol=${SECURITY_PROTOCOL} \
-              --producer-property sasl.mechanism=${SASL_MECHANISM} \
-              --producer-property sasl.jaas.config="${SASL_JAAS_CONFIG}" \
+              --producer.config teamA.properties \
               --topic users \
-              --property schema.registry.url=http://schema-registry:8081 \
+              --property schema.registry.url=http://localhost:8081 \
               --property value.schema='{ 
                   "title": "User",
                   "type": "object",
@@ -105,6 +105,12 @@ actions:
                       "address": { "type": "string" } 
                   } 
               }'
+      
+  - type: BASH
+    kafka: teamA
+    showOutput: true
+    script: |
+      curl --silent http://localhost:8081/subjects/ | jq      
 
   - type: CONSUME
     kafka: teamA

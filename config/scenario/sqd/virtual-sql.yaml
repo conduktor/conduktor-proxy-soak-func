@@ -14,11 +14,11 @@ docker:
 #    image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.0
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
-      GATEWAY_ADVERTISED_HOST: localhost
+      GATEWAY_ADVERTISED_HOST: gateway
       GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
       GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
-      bootstrap.servers: localhost:6969
+      bootstrap.servers: gateway:6969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId

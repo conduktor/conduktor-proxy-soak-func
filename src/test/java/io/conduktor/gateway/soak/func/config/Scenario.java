@@ -148,10 +148,9 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
-
     public static class ConsumeAction extends KafkaAction {
-        private LinkedList<RecordAssertion> assertions;
-        private LinkedHashMap<String, String> properties;
+        private LinkedList<RecordAssertion> assertions = new LinkedList<>();
+        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
         private int timeout = 10000;
         private int maxMessages = 100;
         private Integer assertSize;

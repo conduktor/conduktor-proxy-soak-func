@@ -22,7 +22,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
@@ -37,12 +37,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.conduktor.gateway.soak.func.utils.DockerComposeContainerUtils.startContainer;
-import static io.conduktor.gateway.soak.func.utils.DockerComposeContainerUtils.stopContainer;
+import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -55,6 +58,24 @@ public class ScenarioTest {
     private static final String ADMIN_PASSWORD = "conduktor";
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
     private static List<Arguments> scenarios;
+
+    public static Path createRandomFolder(Boolean deleteOnExit) {
+        try {
+            Path path = Paths.get(System.getProperty("user.dir"), UUID.randomUUID().toString());
+            Files.createDirectory(path);
+            if (deleteOnExit) {
+                path.toFile().deleteOnExit();
+            }
+            return path;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static boolean deleteFolderOnExist = false;
+    private static boolean cleanupAfterTest = false;
+
+    private static Path executionFolder = createRandomFolder(deleteFolderOnExist);
 
     @BeforeAll
     public void setUp() throws IOException {
@@ -69,9 +90,8 @@ public class ScenarioTest {
             if (files != null) {
                 var configReader = YamlConfigReader.forType(Scenario.class);
                 for (var file : files) {
-                    if (file.isFile() && file.getName().toLowerCase().endsWith(".yaml")) {
-                        var scenario = configReader.readYamlInResources(file.getPath());
-                        scenarios.add(Arguments.of(scenario));
+                    if (isScenario(file)) {
+                        scenarios.add(Arguments.of(configReader.readYamlInResources(file.getPath())));
                     }
                 }
             }
@@ -80,18 +100,17 @@ public class ScenarioTest {
         }
     }
 
+    private static boolean isScenario(File file) {
+        return file.isFile() && file.getName().toLowerCase().endsWith(".yaml");
+    }
+
     private static Stream<Arguments> sourceForScenario() {
         return scenarios.stream();
     }
 
-    @AfterEach
-    void cleanup() {
-        stopContainer();
-    }
-
     @ParameterizedTest
     @MethodSource("sourceForScenario")
-    public void testScenario(Scenario scenario) throws IOException, InterruptedException, ExecutionException {
+    public void testScenario(Scenario scenario) throws Exception {
         log.info("Start to test: {}", scenario.getTitle());
         var kafka = scenario.getDocker().getKafka();
         var gateway = scenario.getDocker().getGateway();
@@ -101,7 +120,24 @@ public class ScenarioTest {
         var plugins = scenario.getPlugins();
         var actions = scenario.getActions();
 
-        startContainer(kafka, gateway);
+        var composeFileContent = getUpdatedDockerCompose(kafka, gateway);
+        System.out.println(executionFolder);
+        FileUtils.writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.directory(executionFolder.toFile());
+        processBuilder.command("docker", "compose", "up", "--wait", "--detach");
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String ret = "";
+            String line;
+            while ((line = reader.readLine()) != null) {
+                ret = ret + line + "\n";
+                System.out.println(line);
+            }
+        }
+        process.waitFor();
+
 
         if (Objects.nonNull(plugins)) {
             configurePlugins(plugins);
@@ -114,7 +150,27 @@ public class ScenarioTest {
         }
     }
 
-    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int id, Scenario.Action _action) throws InterruptedException, ExecutionException {
+    @AfterAll
+    public static void cleanup() throws IOException, InterruptedException {
+        if (cleanupAfterTest) {
+            ProcessBuilder processBuilder = new ProcessBuilder();
+            processBuilder.directory(executionFolder.toFile());
+            processBuilder.command("docker", "compose", "down", "--volume");
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String ret = "";
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    ret = ret + line + "\n";
+                    System.out.println(line);
+                }
+            }
+            process.waitFor();
+        }
+    }
+
+    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int id, Scenario.Action _action) throws Exception {
         log.info("[" + id + "] Executing " + _action.simpleMessage());
 
         switch (_action.getType()) {
@@ -144,6 +200,10 @@ public class ScenarioTest {
                     properties.put("sasl.mechanism", "PLAIN");
                     properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
                     clusters.put(name, properties);
+
+                    File propertiesFile = new File(executionFolder + "/" + name + ".properties");
+                    savePropertiesToFile(propertiesFile, properties);
+
                 }
             }
             case CREATE_TOPICS -> {
@@ -267,13 +327,11 @@ public class ScenarioTest {
             }
             case BASH -> {
                 var action = ((Scenario.BashAction) _action);
-                log.info("Executing " + action.getScript());
-                execute("bash", action, getProperties(clusters, action));
+                execute(id, "bash", action, getProperties(clusters, action));
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
-                log.info("Executing " + action.getScript());
-                execute("sh", action, getProperties(clusters, action));
+                execute(id, "sh", action, getProperties(clusters, action));
             }
             case DESCRIBE_KAFKA_PROPERTIES -> {
                 var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
@@ -292,25 +350,29 @@ public class ScenarioTest {
         }
     }
 
-    private void execute(String script, Scenario.ScriptAction action, Properties properties) {
-        File tempFile = null;
-        try {
-            tempFile = File.createTempFile("bash_script", ".sh");
+    private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
+        String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(Collectors.joining("\n"));
+        FileUtils.writeStringToFile(propertiesFile, content, Charset.defaultCharset());
+    }
 
+    private void execute(int id, String script, Scenario.ScriptAction action, Properties properties) {
+        File scriptFile = null;
+        try {
+            scriptFile = new File(executionFolder + "/step-" + id + "." + script);
             String data = (action.getScript().startsWith("#!/bin") ? "" : "#!/bin/" + script + "\n") + action.getScript();
-            FileUtils.writeStringToFile(tempFile, data, Charset.defaultCharset());
+            FileUtils.writeStringToFile(scriptFile, data, Charset.defaultCharset());
 
             Map<String, String> map = new HashMap<>(properties.size());
             for (String key : properties.stringPropertyNames()) {
                 String formattedKey = key.toUpperCase().replace(".", "_");
                 String value = properties.getProperty(key);
                 map.put(formattedKey, value);
-                System.out.println(formattedKey + "=" + value);
             }
 
             ProcessBuilder processBuilder = new ProcessBuilder();
+            processBuilder.directory(executionFolder.toFile());
             processBuilder.environment().putAll(map);
-            processBuilder.command(script, tempFile.getAbsolutePath());
+            processBuilder.command(script, scriptFile.getAbsolutePath());
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
@@ -343,8 +405,8 @@ public class ScenarioTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            if (tempFile != null) {
-//                tempFile.delete();
+            if (scriptFile != null) {
+//                scriptFile.delete();
             }
         }
     }
