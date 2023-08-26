@@ -112,7 +112,6 @@ public class ScenarioTest {
     @MethodSource("sourceForScenario")
     public void testScenario(Scenario scenario) throws Exception {
         log.info("Start to test: {}", scenario.getTitle());
-        var plugins = scenario.getPlugins();
         var actions = scenario.getActions();
 
         Map<String, Properties> clusters = scenario.toServiceProperties();
@@ -134,10 +133,6 @@ public class ScenarioTest {
         }
         process.waitFor();
 
-
-        if (Objects.nonNull(plugins)) {
-            configurePlugins(plugins);
-        }
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
@@ -412,12 +407,15 @@ public class ScenarioTest {
             throw new RuntimeException("kafka is required for " + action.getType());
         }
         Properties p = new Properties();
-        if (action.getProperties() != null) {
-            p.putAll(action.getProperties());
-        }
         Properties t = virtualClusters.get(action.getKafka());
+        if (t == null) {
+            throw new RuntimeException("No kafka defined for " + action.getKafka());
+        }
         if (t != null) {
             p.putAll(t);
+        }
+        if (action.getProperties() != null) {
+            p.putAll(action.getProperties());
         }
         return p;
     }

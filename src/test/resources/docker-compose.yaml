@@ -95,13 +95,6 @@ services:
       - "6970:6970"
       - "9999:9999"
       - "8888:8888"
-    environment:
-        a: b
-#    volumes:
-#      - type: bind
-#        source: "./config/tls"
-#        target: /config/tls
-#        read_only: true
     healthcheck:
       test: curl localhost:8888/health
       interval: 5s

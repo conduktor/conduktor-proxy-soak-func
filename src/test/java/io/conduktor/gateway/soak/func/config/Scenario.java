@@ -15,7 +15,6 @@ import java.util.*;
 public class Scenario {
     private String title;
     private Map<String, Service> services;
-    private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins;
     private LinkedList<Action> actions;
 
     public Map<String, Properties> toServiceProperties() {
@@ -28,8 +27,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Service {
-        private String image;
-        private LinkedHashMap<String, String> environment;
+        private Map<String, Object> docker;
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
 
         public Properties toProperties() {
@@ -148,7 +146,7 @@ public class Scenario {
     public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions = new LinkedList<>();
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private int timeout = 10000;
+        private int timeout = 5000;
         private int maxMessages = 100;
         private Integer assertSize;
         private boolean showRecords = false;

@@ -1,0 +1,221 @@
+title: Crypto Shredding
+services:
+  kafka1:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      environment:
+        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka2:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      environment:
+        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway:
+    docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
+      environment:
+        KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+      depends_on:
+        vault:
+          condition: service_healthy
+    properties:
+      bootstrap.servers: localhost:6969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  vault:
+    docker:
+      image: hashicorp/vault
+      hostname: vault
+      container_name: vault
+      ports:
+        - "8200:8200"
+      command: [
+        "sh",
+        "-c",
+        "(while ! nc -z 127.0.0.1 8200; \
+                  do \
+                  sleep 1; \
+                  echo 'waiting for vault service ...'; \
+                  done; \
+                  export VAULT_ADDR='http://0.0.0.0:8200';\
+                  vault secrets enable transit; \
+                  vault secrets enable -version=1 kv; \
+                  vault secrets enable totp \
+                  ) & vault server -dev -dev-listen-address=0.0.0.0:8200",
+      ]
+      environment:
+        VAULT_ADDR: "http://0.0.0.0:8200"
+        VAULT_DEV_ROOT_TOKEN_ID: "vault-plaintext-root-token"
+      healthcheck:
+        test: nc -zv 0.0.0.0 8200
+        interval: 5s
+        retries: 25
+actions:
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway
+    names:
+      - teamA
+
+  - type: CREATE_TOPICS
+    kafka: teamA
+    topics:
+      - name: customers-shredding
+        replicationFactor: 1
+        partitions: 1
+
+  - type: LIST_TOPICS
+    kafka: teamA
+    assertExists:
+      - customers-shredding
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway
+    interceptors: {
+      "teamA": {
+        "crypto-shredding-encrypt": {
+          "pluginClass": "io.conduktor.gateway.interceptor.EncryptPlugin",
+          "priority": 100,
+          "config": {
+            "topic": "customers-shredding",
+            "kmsConfig": {
+              "vault": {
+                "uri": "http://vault:8200",
+                "token": "vault-plaintext-root-token",
+                "version": 1
+              }
+            },
+            "fields": [
+              {
+                "fieldName": "password",
+                "keySecretId": "vault-kms://vault:8200/transit/keys/secret-for-{{record.value.name}}",
+                "algorithm": {
+                  "type": "AES_GCM",
+                  "kms": "VAULT"
+                }
+              },
+              {
+                "fieldName": "visa",
+                "keySecretId": "vault-kms://vault:8200/transit/keys/secret-for-{{record.value.name}}",
+                "algorithm": {
+                  "type": "AES_GCM",
+                  "kms": "VAULT"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+
+  - type: LIST_INTERCEPTORS
+    gateway: gateway
+    vcluster: teamA
+    assertSize: 1
+    assertNames:
+      - crypto-shredding-encrypt
+
+  - type: PRODUCE
+    kafka: teamA
+    topic: customers-shredding
+    messages:
+      - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
+      - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: customer-encryption
+      auto.offset.reset: earliest
+    topics:
+      - customers-shredding
+    assertSize: 2
+    assertions:
+      - description: Confirm password is encrypted for tom
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'motorhead'
+      - description: Confirm visa is encrypted for tom
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: '#abc123'
+      - description: Confirm password is encrypted for tom
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'kitesurf'
+      - description: Confirm visa is encrypted for tom
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: '#888999XZ'
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway
+    interceptors: {
+      "teamA": {
+        "crypto-shredding-decrypt": {
+          "pluginClass": "io.conduktor.gateway.interceptor.DecryptPlugin",
+          "priority": 100,
+          "config": {
+            "topic": "customers-shredding",
+            "kmsConfig": {
+              "vault": {
+                "uri": "http://vault:8200",
+                "token": "vault-plaintext-root-token",
+                "version": 1
+              }
+            }
+          }
+        }
+      }
+    }
+
+  - type: LIST_INTERCEPTORS
+    gateway: gateway
+    vcluster: teamA
+    assertSize: 2
+    assertNames:
+      - crypto-shredding-encrypt
+      - crypto-shredding-decrypt
+
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: customer-decryption
+      auto.offset.reset: earliest
+    topics:
+      - customers-shredding
+    assertSize: 2
+    assertions:
+      - description: Confirm password is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: 'motorhead'
+      - description: Confirm visa is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: '#abc123'
+      - description: Confirm password is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: 'kitesurf'
+      - description: Confirm visa is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: '#888999XZ'
+
+  - type: SUCCESS

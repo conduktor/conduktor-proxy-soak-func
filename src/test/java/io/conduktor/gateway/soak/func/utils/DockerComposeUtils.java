@@ -8,6 +8,8 @@ import org.jetbrains.annotations.NotNull;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -35,15 +37,47 @@ public class DockerComposeUtils {
     }
 
     private static void appendEnvironments(LinkedHashMap<String, Object> composeConfig, String name, Scenario.Service service) {
-        // Update the environment variables for the specified service
-        var services = (Map<String, Object>) composeConfig.get("services");
+        var services = (Map<String, Map<String, Object>>) composeConfig.get("services");
+        Map<String, Object> serviceMap = new HashMap<>();
         if (services.containsKey(name)) {
-            var serviceConfig = (Map<String, Object>) services.get(name);
-            serviceConfig.put("image", service.getImage());
-            var environment = (Map<String, String>) serviceConfig.computeIfAbsent("environment", k -> new LinkedHashMap<>());
-            environment.putAll(service.getEnvironment());
-        } else {
-            throw new IllegalArgumentException("Service '" + name + "' not found in the docker-compose.yml file.");
+            serviceMap = services.get(name);
         }
+        ((Map<String, Map<String, Object>>) composeConfig.get("services")).put(name, serviceMap);
+
+        for (String key : service.getDocker().keySet()) {
+            Object value = service.getDocker().get(key);
+            if (value instanceof String) {
+                serviceMap.put(key, value);
+            } else if (value instanceof LinkedHashMap) {
+                LinkedHashMap o = (LinkedHashMap) serviceMap.get(key);
+                if (o == null) {
+                    o = new LinkedHashMap();
+                }
+                o.putAll((LinkedHashMap) value);
+                serviceMap.put(key, o);
+            } else if (value instanceof ArrayList) {
+                ArrayList o = (ArrayList) serviceMap.get(key);
+                if (o == null) {
+                    o = new ArrayList();
+                }
+                o.addAll((ArrayList) value);
+                serviceMap.put(key, o);
+            } else {
+                throw new RuntimeException(key + ", we don't support " + value.getClass() + " yet");
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> mergeRecursively(Map<String, Object> map1, Map<String, Object> map2) {
+        Map<String, Object> mergedMap = new HashMap<>(map1);
+        for (String key : map2.keySet()) {
+            if (map1.containsKey(key) && map1.get(key) instanceof Map && map2.get(key) instanceof Map) {
+                mergedMap.put(key, mergeRecursively((Map<String, Object>) map1.get(key), (Map<String, Object>) map2.get(key)));
+            } else {
+                mergedMap.put(key, map2.get(key));
+            }
+        }
+        return mergedMap;
     }
 }
