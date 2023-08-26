@@ -1,6 +1,15 @@
 title: Schema Id validation
-docker:
-  kafka:
+services:
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka2:
     image: confluentinc/cp-kafka:latest
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false

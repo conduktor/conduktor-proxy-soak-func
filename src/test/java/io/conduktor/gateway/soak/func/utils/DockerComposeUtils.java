@@ -5,9 +5,9 @@ import io.conduktor.gateway.soak.func.config.Scenario;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -24,14 +24,13 @@ public class DockerComposeUtils {
     }
 
     @NotNull
-    public static String getUpdatedDockerCompose(Scenario.Service kafkaConfigs, Scenario.Service gatewayConfigs) throws IOException {
-        var yaml = new Yaml();
+    public static String getUpdatedDockerCompose(Scenario scenario) {
+        DumperOptions dumperOptions = new DumperOptions();
+        dumperOptions.setPrettyFlow(true);
+        var yaml = new Yaml(dumperOptions);
+
         var composeConfig = yaml.load(ScenarioTest.class.getResourceAsStream(DOCKER_COMPOSE_FILE_PATH));
-
-        appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "kafka1", kafkaConfigs);
-        appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "kafka2", kafkaConfigs);
-        appendEnvironments((LinkedHashMap<String, Object>) composeConfig, "gateway", gatewayConfigs);
-
+        scenario.getServices().forEach((name, service) -> appendEnvironments((LinkedHashMap<String, Object>) composeConfig, name, service));
         return yaml.dump(composeConfig);
     }
 

@@ -112,15 +112,11 @@ public class ScenarioTest {
     @MethodSource("sourceForScenario")
     public void testScenario(Scenario scenario) throws Exception {
         log.info("Start to test: {}", scenario.getTitle());
-        var kafka = scenario.getDocker().getKafka();
-        var gateway = scenario.getDocker().getGateway();
-        var clusters = scenario.getVirtualClusters();
-        clusters.put("kafka", kafka.toProperties());
-        clusters.put("gateway", gateway.toProperties());
         var plugins = scenario.getPlugins();
         var actions = scenario.getActions();
 
-        var composeFileContent = getUpdatedDockerCompose(kafka, gateway);
+        Map<String, Properties> clusters = scenario.toServiceProperties();
+        var composeFileContent = getUpdatedDockerCompose(scenario);
         System.out.println(executionFolder);
         FileUtils.writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
         ProcessBuilder processBuilder = new ProcessBuilder();

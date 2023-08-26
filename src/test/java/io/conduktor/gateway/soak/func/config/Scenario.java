@@ -14,17 +14,14 @@ import java.util.*;
 @AllArgsConstructor
 public class Scenario {
     private String title;
-    private Docker docker;
-    private Map<String, Properties> virtualClusters = new HashMap<>();
+    private Map<String, Service> services;
     private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins;
     private LinkedList<Action> actions;
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Docker {
-        private Service kafka;
-        private Service gateway;
+    public Map<String, Properties> toServiceProperties() {
+        Map<String, Properties> ret = new HashMap<>();
+        getServices().forEach((name, s) -> ret.put(name, s.toProperties()));
+        return ret;
     }
 
     @Data
