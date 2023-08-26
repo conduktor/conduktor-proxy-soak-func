@@ -153,11 +153,11 @@ actions:
         value:
           operator: doesNotContainIgnoringCase
           expected: '#abc123'
-      - description: Confirm password is encrypted for tom
+      - description: Confirm password is encrypted for florent
         value:
           operator: doesNotContainIgnoringCase
           expected: 'kitesurf'
-      - description: Confirm visa is encrypted for tom
+      - description: Confirm visa is encrypted for florent
         value:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'
@@ -191,7 +191,6 @@ actions:
       - crypto-shredding-encrypt
       - crypto-shredding-decrypt
 
-
   - type: CONSUME
     kafka: teamA
     properties:
@@ -209,13 +208,68 @@ actions:
         value:
           operator: containsIgnoreCase
           expected: '#abc123'
-      - description: Confirm password is decrypted for tom
+      - description: Confirm password is decrypted for florent
         value:
           operator: containsIgnoreCase
           expected: 'kitesurf'
-      - description: Confirm visa is decrypted for tom
+      - description: Confirm visa is decrypted for florent
         value:
           operator: containsIgnoreCase
           expected: '#888999XZ'
 
+  - type: BASH
+    description: Listing created keys in Vault
+    kafka: teamA
+    showOutput: true
+    script: |
+      curl \
+        --request GET 'http://localhost:8200/v1/transit/keys/?list=true' \
+        --silent \
+        --header "X-Vault-Token: vault-plaintext-root-token" | jq -r ".data.keys"
+
+  - type: BASH
+    description: Remove florent related keys
+    kafka: teamA
+    showOutput: true
+    script: |
+      curl \
+        --request POST 'http://localhost:8200/v1/transit/keys/secret-for-florent/config' \
+        --silent \
+        --header "X-Vault-Token: vault-plaintext-root-token" \
+        --header "content-type: application/json" \
+        --data-raw '{"min_decryption_version":"1","min_encryption_version":1,"deletion_allowed":true,"auto_rotate_period":0}' > /dev/null
+      
+      curl \
+        --request DELETE http://localhost:8200/v1/transit/keys/secret-for-florent \
+        --silent \
+        --header "X-Vault-Token: vault-plaintext-root-token"
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: customer-decryption-after-schredding
+      auto.offset.reset: earliest
+    topics:
+      - customers-shredding
+    assertSize: 2
+    assertions:
+      - description: Confirm password is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: 'motorhead'
+      - description: Confirm visa is decrypted for tom
+        value:
+          operator: containsIgnoreCase
+          expected: '#abc123'
+      - description: Confirm password is encrypted for florent
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'kitesurf'
+      - description: Confirm visa is encrypted for florent
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: '#888999XZ'
+
   - type: SUCCESS
+    description: Done
+
