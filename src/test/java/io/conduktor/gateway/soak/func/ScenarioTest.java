@@ -199,12 +199,13 @@ public class ScenarioTest {
                     clusters.put(name, properties);
 
                     savePropertiesToFile(new File(executionFolder + "/" + name + ".properties"), properties);
-
                 }
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                Properties properties = getProperties(clusters, action);
+                System.out.println(properties);
+                try (var adminClient = clientFactory.kafkaAdmin(properties)) {
                     for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
                         try {
                             createTopic(adminClient,
