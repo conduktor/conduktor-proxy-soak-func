@@ -1,0 +1,222 @@
+title: Multi tenancy
+services:
+  kafka1:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      environment:
+        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka2:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      environment:
+        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway:
+    docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
+      environment:
+        KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+actions:
+
+  - type: LIST_TOPICS
+    kafka: kafka1
+    assertExists:
+      - _auditLogs
+      - _acls
+      - _license
+      - _topicRegistry
+      - _interceptorConfigs
+      - _schemas
+      - _consumerGroupSubscriptionBackingTopic
+      - _offsetStore
+      - _topicMappings
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway
+    names:
+      - london
+      - paris
+
+  - type: CREATE_TOPICS
+    kafka: london
+    topics:
+      - name: londonTopic
+        replicationFactor: 1
+        partitions: 1
+
+  - type: CREATE_TOPICS
+    kafka: paris
+    topics:
+      - name: parisTopic
+        replicationFactor: 1
+        partitions: 1
+
+  - type: LIST_TOPICS
+    kafka: london
+    assertExists:
+      - londonTopic
+
+  - type: LIST_TOPICS
+    kafka: paris
+    assertExists:
+      - parisTopic
+
+  - type: PRODUCE
+    kafka: london
+    topic: londonTopic
+    messages:
+      - value: 'testMessageLondon'
+
+  - type: CONSUME
+    kafka: london
+    topics:
+      - londonTopic
+    assertSize: 1
+
+  - type: PRODUCE
+    kafka: paris
+    topic: parisTopic
+    messages:
+      - value: 'testMessageParis'
+
+  - type: CONSUME
+    kafka: paris
+    topics:
+      - parisTopic
+    assertSize: 1
+
+  - type: CREATE_TOPICS
+    kafka: kafka1
+    topics:
+      - name: existingLondonTopic
+        replicationFactor: 1
+        partitions: 1
+
+  - type: PRODUCE
+    kafka: kafka1
+    topic: existingLondonTopic
+    messages:
+      - value: 'existingLondonMessage'
+
+  - type: BASH
+    showOutput: true
+    script: |
+      curl \
+        --silent \
+        --user admin:conduktor \
+        --request POST localhost:8888/admin/vclusters/v1/vcluster/london/topics/existingLondonTopic \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+            "physicalTopicName": "existingLondonTopic",
+            "readOnly": false,
+            "concentrated": false
+          }' | jq
+
+  - type: LIST_TOPICS
+    kafka: london
+    assertExists:
+     - londonTopic
+     - existingLondonTopic
+
+  - type: CREATE_TOPICS
+    kafka: kafka1
+    topics:
+      - name: existingSharedTopic
+        replicationFactor: 1
+        partitions: 1
+
+  - type: PRODUCE
+    kafka: kafka1
+    topic: existingSharedTopic
+    messages:
+      - value: 'existingSharedMessage'
+
+  - type: BASH
+    showOutput: true
+    script: |
+      curl \
+        --silent \
+        --request POST localhost:8888/admin/vclusters/v1/vcluster/london/topics/existingSharedTopic \
+        --user admin:conduktor \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+          "physicalTopicName": "existingSharedTopic",
+          "readOnly": false,
+          "concentrated": false
+        }' | jq
+
+  - type: LIST_TOPICS
+    kafka: london
+    assertExists:
+      - londonTopic
+      - existingLondonTopic
+      - existingSharedTopic
+
+  - type: CONSUME
+    kafka: london
+    topics:
+      - existingLondonTopic
+      - existingSharedTopic
+    assertSize: 2
+    assertions:
+      - description: Assert contains the original london topic message
+        value:
+          operator: contains
+          expected: 'existingLondonMessage'
+      - description: Assert contains the original shared topic message
+        value:
+          operator: containsIgnoreCase
+          expected: 'existingSharedMessage'
+
+  - type: BASH
+    showOutput: true
+    script: |
+      curl \
+        --silent \
+        --user admin:conduktor \
+        --request POST localhost:8888/admin/vclusters/v1/vcluster/paris/topics/existingSharedTopic \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+          "physicalTopicName": "existingSharedTopic",
+          "readOnly": false,
+          "concentrated": false
+        }' | jq
+
+  - type: LIST_TOPICS
+    kafka: paris
+    assertExists:
+      - parisTopic
+      - existingSharedTopic
+
+  - type: CONSUME
+    kafka: paris
+    topics:
+      - existingSharedTopic
+    assertSize: 1
+    assertions:
+      - description: Assert contains the original shared topic message
+        value:
+          operator: containsIgnoreCase
+          expected: 'existingSharedMessage'
+
+
+  - type: SUCCESS
+    description: Done
+

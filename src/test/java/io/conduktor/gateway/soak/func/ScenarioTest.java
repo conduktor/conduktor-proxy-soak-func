@@ -78,7 +78,12 @@ public class ScenarioTest {
     private static Path executionFolder = createRandomFolder(deleteFolderOnExist);
 
     @BeforeAll
-    public void setUp() throws IOException {
+    public void setUp() throws Exception {
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.directory(executionFolder.toFile());
+        processBuilder.command("bash", "-c", "docker rm -f $(docker ps -aq)");
+        processBuilder.start().waitFor();
+
         loadScenarios();
     }
 
@@ -190,10 +195,10 @@ public class ScenarioTest {
                     properties.put("security.protocol", "SASL_PLAINTEXT");
                     properties.put("sasl.mechanism", "PLAIN");
                     properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
+                    properties.put("auto.offset.reset", "earliest");
                     clusters.put(name, properties);
 
-                    File propertiesFile = new File(executionFolder + "/" + name + ".properties");
-                    savePropertiesToFile(propertiesFile, properties);
+                    savePropertiesToFile(new File(executionFolder + "/" + name + ".properties"), properties);
 
                 }
             }
@@ -280,7 +285,11 @@ public class ScenarioTest {
             }
             case CONSUME -> {
                 var action = ((Scenario.ConsumeAction) _action);
-                try (var consumer = clientFactory.consumer(getProperties(clusters, action))) {
+                Properties properties = getProperties(clusters, action);
+                if (!properties.containsKey("group.id")) {
+                    properties.put("group.id", "step-" + id);
+                }
+                try (var consumer = clientFactory.consumer(properties)) {
                     var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
                     if (action.isShowRecords()) {
                         records.stream().forEach(System.out::println);
@@ -376,7 +385,6 @@ public class ScenarioTest {
                 }
                 int exitCode = process.waitFor();
 
-                System.out.println(exitCode);
                 if (action.showOutput) {
                     log.info(ret);
                 }
@@ -403,16 +411,15 @@ public class ScenarioTest {
     }
 
     private Properties getProperties(Map<String, Properties> virtualClusters, Scenario.KafkaAction action) {
-        if (StringUtils.isBlank(action.getKafka())) {
-            throw new RuntimeException("kafka is required for " + action.getType());
-        }
         Properties p = new Properties();
-        Properties t = virtualClusters.get(action.getKafka());
-        if (t == null) {
-            throw new RuntimeException("No kafka defined for " + action.getKafka());
-        }
-        if (t != null) {
-            p.putAll(t);
+        if (StringUtils.isNotBlank(action.getKafka())) {
+            Properties t = virtualClusters.get(action.getKafka());
+            if (t == null) {
+                throw new RuntimeException("No kafka defined for " + action.getKafka());
+            }
+            if (t != null) {
+                p.putAll(t);
+            }
         }
         if (action.getProperties() != null) {
             p.putAll(action.getProperties());
@@ -442,7 +449,6 @@ public class ScenarioTest {
             configurePlugins(plugin.getValue(), plugin.getKey());
         }
     }
-
 
     private static void configurePlugins(LinkedHashMap<String, PluginRequest> plugins, String vcluster) {
         for (var plugin : plugins.entrySet()) {
@@ -545,10 +551,8 @@ public class ScenarioTest {
                 log.info("Test: " + recordAssertion.getDescription());
             }
             if ((validKey && validValues && validHeader) == false) {
-                log.info("Assertion failed");
-                log.info("Key: " + validKey);
-                log.info("Values: " + validValues);
-                log.info("Header: " + validHeader);
+                log.info("Assertion failed with key: " + validKey + ", values: " + validValues + ", header: " + validHeader);
+                log.info("" + records);
                 Assertions.fail(recordAssertion.getDescription() + " failed");
             }
         }
