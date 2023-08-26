@@ -140,6 +140,8 @@ public class Scenario {
         private LinkedList<Message> messages;
         private LinkedHashMap<String, String> properties;
         private String topic;
+        private Boolean assertError;
+        private List<String> assertErrorMessages = new ArrayList<>();
     }
 
     @Data
@@ -223,20 +225,25 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ScriptAction extends Action {
+    public static class ScriptAction extends KafkaAction {
         public String script;
+        public boolean showOutput = false;
+        public Integer assertError;
         public Integer assertExitCode;
         public List<String> assertOutputContains = new ArrayList<>();
         public List<String> assertOutputDoesNotContain = new ArrayList<>();
     }
 
-
-    @Data
-    public static class BashAction extends ScriptAction {
+    public interface HasKafka {
+        String getKafka();
     }
 
     @Data
-    public static class ShAction extends ScriptAction {
+    public static class BashAction extends ScriptAction implements HasKafka {
+    }
+
+    @Data
+    public static class ShAction extends ScriptAction implements HasKafka {
     }
 
     @Data

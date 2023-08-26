@@ -1,0 +1,118 @@
+title: Schema Id validation
+docker:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway:
+    image: ghcr.io/conduktor/conduktor-gateway-distro
+#    image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.0
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
+      GATEWAY_ADVERTISED_HOST: localhost
+      GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+actions:
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway
+    names:
+      - teamA
+
+  - type: CREATE_TOPICS
+    kafka: teamA
+    topics:
+      - name: users
+        replicationFactor: 1
+        partitions: 1
+
+  - type: LIST_TOPICS
+    kafka: teamA
+    assertExists:
+      - users
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway
+    interceptors:
+      teamA:
+        schema-id:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.TopicRequiredSchemaIdPolicyPlugin"
+          "priority": 100
+          "config": {
+            "topic": "users",
+            "schemaIdRequired": true
+          }
+
+  - type: LIST_INTERCEPTORS
+    gateway: gateway
+    vcluster: teamA
+    assertSize: 1
+    assertNames:
+      - schema-id
+
+  - type: PRODUCE
+    kafka: teamA
+    topic: users
+    assertError: true
+    assertErrorMessages:
+      -  Request parameters do not satisfy the configured policy. Topic 'users' with schemaId is required.
+    messages:
+      - value: '{"msg":"hello world"}'
+
+  - type: BASH
+    kafka: teamA
+    script: |
+      
+      env 
+      
+      echo 'echo "BOOTSTRAP_SERVERS = ${BOOTSTRAP_SERVERS}"' > /tmp/floflo
+      echo "BOOTSTRAP_SERVERS = ${BOOTSTRAP_SERVERS}"
+      
+      env > /tmp/florent
+      
+      echo '{ 
+          "name": "conduktor",
+          "username": "test@conduktor.io",
+          "password": "password1",
+          "visa": "visa123456",
+          "address": "Conduktor Towers, London" 
+      }' | jq -c | docker exec -T schema-registry \
+          kafka-json-schema-console-producer  \
+              --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+              --producer-property security.protocol=${SECURITY_PROTOCOL} \
+              --producer-property sasl.mechanism=${SASL_MECHANISM} \
+              --producer-property sasl.jaas.config="${SASL_JAAS_CONFIG}" \
+              --topic users \
+              --property schema.registry.url=http://schema-registry:8081 \
+              --property value.schema='{ 
+                  "title": "User",
+                  "type": "object",
+                  "properties": { 
+                      "name": { "type": "string" },
+                      "username": { "type": "string" },
+                      "password": { "type": "string" },
+                      "visa": { "type": "string" },
+                      "address": { "type": "string" } 
+                  } 
+              }'
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: consume-users
+      auto.offset.reset: earliest
+    topics:
+      - users
+    assertSize: 1
+
+  - type: SUCCESS

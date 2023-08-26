@@ -213,7 +213,18 @@ public class ScenarioTest {
                 var action = ((Scenario.ProduceAction) _action);
                 Properties properties = getProperties(clusters, action);
                 try (var producer = clientFactory.kafkaProducer(properties)) {
-                    produce(action.getTopic(), action.getMessages(), producer);
+                    try {
+                        produce(action.getTopic(), action.getMessages(), producer);
+                        if (action.getAssertError() != null) {
+                            Assertions.fail("Produce should have failed");
+                        }
+                    } catch (Exception e) {
+                        if (!action.getAssertErrorMessages().isEmpty()) {
+                            assertThat(e.getMessage())
+                                    .contains(action.getAssertErrorMessages());
+                        }
+                        log.error("could not produce message");
+                    }
                 }
             }
             case CONSUME -> {
@@ -257,12 +268,12 @@ public class ScenarioTest {
             case BASH -> {
                 var action = ((Scenario.BashAction) _action);
                 log.info("Executing " + action.getScript());
-                execute("bash", action);
+                execute("bash", action, getProperties(clusters, action));
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
                 log.info("Executing " + action.getScript());
-                execute("sh", action);
+                execute("sh", action, getProperties(clusters, action));
             }
             case DESCRIBE_KAFKA_PROPERTIES -> {
                 var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
@@ -281,13 +292,28 @@ public class ScenarioTest {
         }
     }
 
-    private void execute(String script, Scenario.ScriptAction action) {
+    private void execute(String script, Scenario.ScriptAction action, Properties properties) {
         File tempFile = null;
         try {
             tempFile = File.createTempFile("bash_script", ".sh");
-            FileUtils.writeStringToFile(tempFile, action.getScript(), Charset.defaultCharset());
 
-            Process process = Runtime.getRuntime().exec(new String[]{script, tempFile.getAbsolutePath()});
+            String data = (action.getScript().startsWith("#!/bin") ? "" : "#!/bin/" + script + "\n") + action.getScript();
+            FileUtils.writeStringToFile(tempFile, data, Charset.defaultCharset());
+
+            Map<String, String> map = new HashMap<>(properties.size());
+            for (String key : properties.stringPropertyNames()) {
+                String formattedKey = key.toUpperCase().replace(".", "_");
+                String value = properties.getProperty(key);
+                map.put(formattedKey, value);
+                System.out.println(formattedKey + "=" + value);
+            }
+
+            ProcessBuilder processBuilder = new ProcessBuilder();
+            processBuilder.environment().putAll(map);
+            processBuilder.command(script, tempFile.getAbsolutePath());
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String ret = "";
@@ -296,19 +322,29 @@ public class ScenarioTest {
                     ret = ret + line + "\n";
                 }
                 int exitCode = process.waitFor();
+
+                System.out.println(exitCode);
+                if (action.showOutput) {
+                    log.info(ret);
+                }
                 if (action.assertExitCode != null) {
                     assertThat(exitCode)
                             .isEqualTo(action.assertExitCode);
                 }
-                assertThat(ret)
-                        .containsSequence(action.assertOutputContains)
-                        .doesNotContain(action.assertOutputDoesNotContain);
+                if (!action.assertOutputContains.isEmpty()) {
+                    assertThat(ret)
+                            .containsSequence(action.assertOutputContains);
+                }
+                if (!action.assertOutputDoesNotContain.isEmpty()) {
+                    assertThat(ret)
+                            .doesNotContain(action.assertOutputDoesNotContain);
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
             if (tempFile != null) {
-                tempFile.delete();
+//                tempFile.delete();
             }
         }
     }

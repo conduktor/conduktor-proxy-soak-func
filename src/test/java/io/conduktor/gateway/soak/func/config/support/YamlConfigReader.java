@@ -26,10 +26,9 @@ public class YamlConfigReader<ConfigType> {
     public ConfigType readYamlInResources(String yamlFilePath) throws IOException {
         // The class loader that loaded the class
         var all = stringFromFile(yamlFilePath);
-        var resolvedData = EnvironmentVariables.resolve(all);
         var mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID));
         mapper.findAndRegisterModules();
-        return mapper.readValue(resolvedData, type);
+        return mapper.readValue(all, type);
     }
 
     private String stringFromFile(String yamlFilePath) {

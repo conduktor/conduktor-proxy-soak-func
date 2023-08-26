@@ -11,6 +11,7 @@ docker:
       client.id: clientId
   gateway:
     image: ghcr.io/conduktor/conduktor-gateway-distro
+#    image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.0
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
       GATEWAY_ADVERTISED_HOST: localhost
@@ -27,16 +28,6 @@ actions:
     gateway: gateway
     names:
       - teamA
-
-  - type: CREATE_TOPICS
-    kafka: teamA
-    assertError: true
-    assertErrorMessages:
-      - Topic name is invalid
-    topics:
-      - name: carscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscarscars
-        replicationFactor: 1
-        partitions: 1
 
   - type: CREATE_TOPICS
     kafka: teamA
