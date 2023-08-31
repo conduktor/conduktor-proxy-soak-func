@@ -9,17 +9,16 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2801
       ZOOKEEPER_TICK_TIME: 2000
     healthcheck:
-      test: nc -zv zookeeper 2801 || exit 1
+      test: nc -zv 0.0.0.0 2801 || exit 1
       interval: 5s
       retries: 25
 
   kafka1:
     hostname: kafka1
     container_name: kafka1
+    image: confluentinc/cp-kafka:latest
     ports:
       - "29092:29092"
-    depends_on:
-      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
@@ -27,14 +26,13 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:9092,EXTERNAL_SAME_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_REPLICATION_FACTOR: 2
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG4J_LOGGERS: "kafka.authorizer.logger=INFO"
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     healthcheck:
       test: nc -zv kafka1 9092 || exit 1
       interval: 5s
@@ -43,10 +41,9 @@ services:
   kafka2:
     hostname: kafka2
     container_name: kafka2
+    image: confluentinc/cp-kafka:latest
     ports:
       - "29093:29093"
-    depends_on:
-      - zookeeper
     environment:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
@@ -54,46 +51,84 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:9093,EXTERNAL_SAME_HOST://localhost:29093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_REPLICATION_FACTOR: 2
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG4J_LOGGERS: "kafka.authorizer.logger=INFO"
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     healthcheck:
       test: nc -zv kafka2 9093 || exit 1
+      interval: 5s
+      retries: 25
+
+  kafka3:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka3
+    container_name: kafka3
+    ports:
+      - "29094:29094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801
+      KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29094,INTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:9094,EXTERNAL_SAME_HOST://localhost:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG4J_LOGGERS: "kafka.authorizer.logger=INFO"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv kafka3 9094 || exit 1
       interval: 5s
       retries: 25
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
     hostname: schema-registry
-    depends_on:
-      - kafka1
     ports:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:9092
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
       SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: WARN
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
-
-  gateway:
-    hostname: gateway
-    container_name: gateway
     depends_on:
       kafka1:
         condition: service_healthy
       kafka2:
         condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    healthcheck:
+      test: nc -zv schema-registry 8081 || exit 1
+      interval: 5s
+      retries: 25
+
+  gateway:
+    hostname: gateway
+    container_name: gateway
+    image: ghcr.io/conduktor/conduktor-gateway-distro
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
     ports:
       - "6969:6969"
       - "6970:6970"
-      - "9999:9999"
+      - "6971:6971"
       - "8888:8888"
     healthcheck:
       test: curl localhost:8888/health

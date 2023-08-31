@@ -118,6 +118,13 @@
             <version>6.0.11</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-all</artifactId>
+            <version>0.62.2</version> <!-- Use the latest version -->
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

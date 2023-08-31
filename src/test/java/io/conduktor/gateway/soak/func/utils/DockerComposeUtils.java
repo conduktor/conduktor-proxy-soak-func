@@ -44,26 +44,29 @@ public class DockerComposeUtils {
         }
         ((Map<String, Map<String, Object>>) composeConfig.get("services")).put(name, serviceMap);
 
-        for (String key : service.getDocker().keySet()) {
-            Object value = service.getDocker().get(key);
-            if (value instanceof String) {
-                serviceMap.put(key, value);
-            } else if (value instanceof LinkedHashMap) {
-                LinkedHashMap o = (LinkedHashMap) serviceMap.get(key);
-                if (o == null) {
-                    o = new LinkedHashMap();
+        Map<String, Object> docker = service.getDocker();
+        if (docker != null) {
+            for (String key : docker.keySet()) {
+                Object value = docker.get(key);
+                if (value instanceof String) {
+                    serviceMap.put(key, value);
+                } else if (value instanceof LinkedHashMap) {
+                    LinkedHashMap o = (LinkedHashMap) serviceMap.get(key);
+                    if (o == null) {
+                        o = new LinkedHashMap();
+                    }
+                    o.putAll((LinkedHashMap) value);
+                    serviceMap.put(key, o);
+                } else if (value instanceof ArrayList) {
+                    ArrayList o = (ArrayList) serviceMap.get(key);
+                    if (o == null) {
+                        o = new ArrayList();
+                    }
+                    o.addAll((ArrayList) value);
+                    serviceMap.put(key, o);
+                } else {
+                    throw new RuntimeException(key + ", we don't support " + value.getClass() + " yet");
                 }
-                o.putAll((LinkedHashMap) value);
-                serviceMap.put(key, o);
-            } else if (value instanceof ArrayList) {
-                ArrayList o = (ArrayList) serviceMap.get(key);
-                if (o == null) {
-                    o = new ArrayList();
-                }
-                o.addAll((ArrayList) value);
-                serviceMap.put(key, o);
-            } else {
-                throw new RuntimeException(key + ", we don't support " + value.getClass() + " yet");
             }
         }
     }

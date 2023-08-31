@@ -1,36 +1,29 @@
 title: Crypto Shredding
 services:
   kafka1:
-    docker:
-      image: confluentinc/cp-kafka:latest
-      environment:
-        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
-      bootstrap.servers: localhost:29092,localhost:29093
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
   kafka2:
-    docker:
-      image: confluentinc/cp-kafka:latest
-      environment:
-        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
-      bootstrap.servers: localhost:29092,localhost:29093
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka3:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
   gateway:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
-        KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
-      depends_on:
-        vault:
-          condition: service_healthy
     properties:
       bootstrap.servers: localhost:6969
       auto.offset.reset: earliest
@@ -238,7 +231,7 @@ actions:
         --header "X-Vault-Token: vault-plaintext-root-token" \
         --header "content-type: application/json" \
         --data-raw '{"min_decryption_version":"1","min_encryption_version":1,"deletion_allowed":true,"auto_rotate_period":0}' > /dev/null
-      
+     
       curl \
         --request DELETE http://localhost:8200/v1/transit/keys/secret-for-florent \
         --silent \

@@ -1,33 +1,29 @@
 title: Schema Id validation
 services:
   kafka1:
-    docker:
-      image: confluentinc/cp-kafka:latest
-      environment:
-        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
-      bootstrap.servers: localhost:29092,localhost:29093
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
   kafka2:
-    docker:
-      image: confluentinc/cp-kafka:latest
-      environment:
-        KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
-      bootstrap.servers: localhost:29092,localhost:29093
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka3:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
   gateway:
-    image: ghcr.io/conduktor/conduktor-gateway-distro
-#    image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.0
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093
-      GATEWAY_ADVERTISED_HOST: localhost
-      GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
-      GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969
       auto.offset.reset: earliest
@@ -94,34 +90,34 @@ actions:
     showOutput: true
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
-      echo '{ 
+      echo '{
           "name": "conduktor",
           "username": "test@conduktor.io",
           "password": "password1",
           "visa": "visa123456",
-          "address": "Conduktor Towers, London" 
+          "address": "Conduktor Towers, London"
       }' | jq -c | kafka-json-schema-console-producer  \
               --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
               --producer.config teamA.properties \
               --topic users \
               --property schema.registry.url=http://localhost:8081 \
-              --property value.schema='{ 
+              --property value.schema='{
                   "title": "User",
                   "type": "object",
-                  "properties": { 
+                  "properties": {
                       "name": { "type": "string" },
                       "username": { "type": "string" },
                       "password": { "type": "string" },
                       "visa": { "type": "string" },
-                      "address": { "type": "string" } 
-                  } 
+                      "address": { "type": "string" }
+                  }
               }'
-      
+     
   - type: BASH
     kafka: teamA
     showOutput: true
     script: |
-      curl --silent http://localhost:8081/subjects/ | jq      
+      curl --silent http://localhost:8081/subjects/ | jq     
 
   - type: CONSUME
     kafka: teamA
