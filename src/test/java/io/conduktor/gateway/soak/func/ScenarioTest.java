@@ -47,6 +47,8 @@ import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
 import static io.restassured.RestAssured.given;
+import static org.apache.http.HttpStatus.SC_CREATED;
+import static org.apache.http.HttpStatus.SC_OK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
@@ -465,7 +467,7 @@ public class ScenarioTest {
                     .when()
                     .post("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, pluginName)
                     .then()
-                    .statusCode(200)
+                    .statusCode(SC_CREATED)
                     .extract()
                     .response();
         }
@@ -496,7 +498,7 @@ public class ScenarioTest {
                 when()
                 .post("/vcluster/{vcluster}/username/{username}", vcluster, username).
                 then()
-                .statusCode(200)
+                .statusCode(SC_OK)
                 .extract()
                 .response()
                 .as(VClusterCreateResponse.class);
@@ -511,7 +513,7 @@ public class ScenarioTest {
                 when()
                 .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
                 then()
-                .statusCode(200);
+                .statusCode(SC_OK);
     }
 
     @Data
@@ -530,7 +532,7 @@ public class ScenarioTest {
                 when()
                 .get("/vcluster/{vcluster}/interceptors", vcluster).
                 then()
-                .statusCode(200)
+                .statusCode(SC_OK)
                 .extract()
                 .response()
                 .as(TenantInterceptorsResponse.class);
