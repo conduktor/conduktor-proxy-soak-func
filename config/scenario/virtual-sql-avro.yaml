@@ -115,7 +115,7 @@ actions:
           "priority": "100"
           "config": {
             "virtualTopic": "red-cars",
-            "statement": "SELECT type, price as price FROM cars WHERE color = 'red'",
+            "statement": "SELECT * FROM cars WHERE color = 'red'",
             "schemaRegistryConfig": {
               "host": "http://schema-registry:8081"
             }
@@ -139,6 +139,11 @@ actions:
           --topic red-cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
-          --max-messages 1 | jq
+          --max-messages 1 | grep "{" | jq
+    assertOutputDoesNotContain:
+      - blue
+    assertOutputContains:
+      - Processed a total of 1 messages
+      - red
 
   - type: SUCCESS

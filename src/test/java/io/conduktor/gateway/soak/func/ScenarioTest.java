@@ -205,9 +205,7 @@ public class ScenarioTest {
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
-                Properties properties = getProperties(clusters, action);
-                System.out.println(properties);
-                try (var adminClient = clientFactory.kafkaAdmin(properties)) {
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
                         try {
                             createTopic(adminClient,
