@@ -134,3 +134,26 @@ services:
       test: curl localhost:8888/health
       interval: 5s
       retries: 25
+
+  gateway2:
+    hostname: gateway2
+    container_name: gateway2
+    image: ghcr.io/conduktor/conduktor-gateway-distro
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+      GATEWAY_START_PORT: 7969
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    ports:
+      - "7969:7969"
+      - "7970:7970"
+      - "7971:7971"
+    healthcheck:
+      test: curl localhost:8888/health
+      interval: 5s
+      retries: 25

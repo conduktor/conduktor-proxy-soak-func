@@ -29,6 +29,7 @@ public class Scenario {
     public static class Service {
         private Map<String, Object> docker;
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        private LinkedHashMap<String, String> environment = new LinkedHashMap<>();
 
         public Properties toProperties() {
             Properties ret = new Properties();

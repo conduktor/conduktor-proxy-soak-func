@@ -188,9 +188,10 @@ public class ScenarioTest {
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
                 List<String> names = action.getNames();
+                String gateway = "localhost:8888";
                 String username = "sa";
                 for (String name : names) {
-                    VClusterCreateResponse response = createVirtualCluster(name, username);
+                    VClusterCreateResponse response = createVirtualCluster(gateway, name, username);
 
                     Properties properties = clusters.getOrDefault(name, new Properties());
                     properties.put("bootstrap.servers", "localhost:6969");
@@ -201,6 +202,15 @@ public class ScenarioTest {
                     clusters.put(name, properties);
 
                     savePropertiesToFile(new File(executionFolder + "/" + name + ".properties"), properties);
+
+                    System.out.println(String.format("""
+                           curl \\
+                               --silent \\
+                               --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
+                               --user 'admin:conduktor' \\
+                               --header 'Content-Type: application/json' \\
+                               --data-raw '{"lifeTimeSeconds": 7776000}'
+                            """, gateway, name, username));
                 }
             }
             case CREATE_TOPICS -> {
@@ -215,6 +225,17 @@ public class ScenarioTest {
                             if (action.getAssertError() != null) {
                                 Assertions.fail("Expected an error");
                             }
+
+                            System.out.println(String.format("""
+                                    kafka-topics \\
+                                        --bootstrap-server %s \\
+                                        --command-config /clientConfig/teamA-sa.properties \\
+                                        --replication-factor 1 \\
+                                        --partitions 1 \\
+                                        --create \\
+                                        --topic cars \\
+                                        --if-not-exists
+                                    """, clusters.get(action.getKafka()).getProperty("bootstrap.servers")));
                         } catch (Exception e) {
                             if (!action.getAssertErrorMessages().isEmpty()) {
                                 assertThat(e.getMessage())
@@ -229,6 +250,12 @@ public class ScenarioTest {
                 var action = ((Scenario.ListTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     Set<String> topics = adminClient.listTopics().names().get();
+                    System.out.println(String.format("""
+                                    kafka-topics \\
+                                        --bootstrap-server %s \\
+                                        --command-config /clientConfig/teamA-sa.properties \\
+                                        --list
+                                    """, clusters.get(action.getKafka()).getProperty("bootstrap.servers")));
                     System.out.println(topics);
                     if (Objects.nonNull(action.assertSize)) {
                         assertThat(topics)
@@ -272,6 +299,19 @@ public class ScenarioTest {
                 try (var producer = clientFactory.kafkaProducer(properties)) {
                     try {
                         produce(action.getTopic(), action.getMessages(), producer);
+
+                        for (Scenario.Message message : action.getMessages()) {
+                            System.out.println(String.format("""
+                                echo '%s' | \\
+                                   kafka-console-producer  \\
+                                       --bootstrap-server %s \\
+                                       --producer.config /clientConfig/teamA-sa.properties \\
+                                       --topic cars
+                                    """, message,
+                                    clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                    action.getTopic()));
+                        }
+
                         if (action.getAssertError() != null) {
                             Assertions.fail("Produce should have failed");
                         }
@@ -301,6 +341,17 @@ public class ScenarioTest {
                     }
                     assertRecords(records, action.getAssertions());
                 }
+                for (String topic : action.getTopics()) {
+                    System.out.println(String.format("""
+                                echo '%s' | \\
+                                   kafka-console-producer  \\
+                                       --bootstrap-server %s \\
+                                       --producer.config /clientConfig/teamA-sa.properties \\
+                                       --topic cars
+                                    """,
+                            clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                            topic));
+                }
             }
             case ADD_INTERCEPTORS -> {
                 var action = ((Scenario.AddInterceptorAction) _action);
@@ -325,6 +376,12 @@ public class ScenarioTest {
                             .extracting(PluginResponse::getName)
                             .contains(assertion);
                 }
+                System.out.println(String.format("""
+                        curl \\
+                            -u "admin:conduktor" \\
+                            --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
+                            --header 'Content-Type: application/json'| jq
+                        """, "gateway:8888", "teamA"));
             }
             case BASH -> {
                 var action = ((Scenario.BashAction) _action);
@@ -347,6 +404,11 @@ public class ScenarioTest {
                     assertThat(properties.values())
                             .containsAll(action.assertValues);
                 }
+
+                System.out.println(String.format("""
+                        cat clientConfig/%s-sa.properties
+                        """, "teamA"));
+
             }
         }
     }
@@ -485,10 +547,10 @@ public class ScenarioTest {
         public String token;
     }
 
-    private static VClusterCreateResponse createVirtualCluster(String vcluster, String username) {
+    private static VClusterCreateResponse createVirtualCluster(String gateway, String vcluster, String username) {
         log.info("Creating virtual cluster " + vcluster);
         return given()
-                .baseUri("http://localhost:8888/admin/vclusters/v1")
+                .baseUri("http://" + gateway + "/admin/vclusters/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
                 .contentType(ContentType.JSON)
