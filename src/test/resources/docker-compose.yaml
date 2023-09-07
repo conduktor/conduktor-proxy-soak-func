@@ -112,9 +112,9 @@ services:
       interval: 5s
       retries: 25
 
-  gateway:
-    hostname: gateway
-    container_name: gateway
+  gateway1:
+    hostname: gateway1
+    container_name: gateway1
     image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
@@ -157,3 +157,6 @@ services:
       test: curl localhost:8888/health
       interval: 5s
       retries: 25
+
+networks:
+  demo:

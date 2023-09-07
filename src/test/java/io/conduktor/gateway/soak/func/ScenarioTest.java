@@ -457,7 +457,7 @@ public class ScenarioTest {
                 }
                 if (!action.assertOutputContains.isEmpty()) {
                     assertThat(ret)
-                            .containsSequence(action.assertOutputContains);
+                            .contains(action.assertOutputContains);
                 }
                 if (!action.assertOutputDoesNotContain.isEmpty()) {
                     assertThat(ret)

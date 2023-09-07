@@ -1,0 +1,243 @@
+title: Sainsburry
+services:
+  kafka1:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka2:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka3:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway1:
+    docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway2:
+    docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway-public:
+    docker:
+      hostname: gateway-public
+      container_name: gateway-public
+      image: ghcr.io/conduktor/conduktor-gateway-distro
+      environment:
+        KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+        GATEWAY_START_PORT: 17969
+        GATEWAY_CLUSTER_ID: public
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+      depends_on:
+        kafka1:
+          condition: service_healthy
+        kafka2:
+          condition: service_healthy
+        kafka3:
+          condition: service_healthy
+      ports:
+        - "17969:17969"
+        - "17970:17970"
+        - "17971:17971"
+      healthcheck:
+        test: curl localhost:8888/health
+        interval: 5s
+        retries: 25
+actions:
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway1
+    names:
+      - teamA
+
+  - type: BASH
+    showOutput: true
+    script: |
+        curl \
+          --silent \
+          --request POST 'localhost:8888/topicMappings/teamA/unlimited.*' \
+          --user 'admin:conduktor' \
+          --header 'Content-Type: application/json' \
+          --data-raw '{
+            "topicName": "concentrated",
+            "isVirtual": true
+          }'
+
+  - type: BASH
+    description: create 100 topics in //
+    kafka: teamA
+    showOutput: true
+    script: |
+      for topic_number in `seq 100`; do 
+        echo unlimited-${topic_number}; 
+      done | \
+        xargs -I _ -P16 kafka-topics \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --command-config teamA.properties \
+          --config cleanup.policy=compact \
+          --create --topic _
+
+  - type: BASH
+    description: assert 100 virtual topics
+    kafka: kafka1
+    showOutput: true
+    script: |
+      echo nb topics = $(curl \
+        --silent \
+        --user 'admin:conduktor' \
+        --header 'Content-Type: application/json' \
+        localhost:8888/topics/teamA | jq 'length')
+
+      echo nb topics mappings = $(curl \
+        --silent \
+        --user 'admin:conduktor' \
+        --header 'Content-Type: application/json' \
+        localhost:8888/topicMappings/teamA | jq 'length')
+
+      echo nb physical topics = $(kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --list | wc -l)
+    assertOutputContains:
+      - nb topics = 100
+      - nb topics mappings = 101
+      - nb physical topics = 11
+
+  - type: BASH
+    description: send data to the 100 topics in //
+    kafka: teamA
+    showOutput: true
+    script: |
+      for topic_number in `seq 100`; do 
+        echo unlimited-${topic_number}; 
+      done | \
+        xargs -I _ -P15 sh -c "echo _ | kafka-console-producer \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --producer.config teamA.properties \
+          --topic _"
+
+  - type: BASH
+    description: assert 100 elements in
+    kafka: kafka1
+    showOutput: true
+    script: |
+      kafka-console-consumer \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --topic concentrated_compacted \
+        --from-beginning \
+        --max-messages 100 | wc -l
+
+  - type: BASH
+    description: consume data to the topics using groups in //
+    kafka: teamA
+    showOutput: true
+    script: |
+      for topic_number in `seq 100`; do 
+        echo unlimited-${topic_number};
+      done | \
+        xargs -I _ -P15 sh -c "kafka-console-consumer \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --consumer.config teamA.properties \
+          --topic _ \
+          --group _ \
+          --from-beginning \
+          --max-messages 1"
+
+  - type: BASH
+    description: assert number of consumer groups
+    kafka: teamA
+    showOutput: true
+    script: |
+      echo "number of consumer groups " $(kafka-consumer-groups \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --list | wc -l )
+
+  - type: BASH
+    description: describe each consumer groups
+    kafka: teamA
+    showOutput: true
+    script: |
+      for topic_number in `seq 100`; do 
+        echo unlimited-${topic_number};
+      done | \
+        xargs -I _ -P15 sh -c "kafka-consumer-groups \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --command-config teamA.properties \
+          --group _ \
+          --describe"
+    assertOutputDoesNotContain:
+      - "Error:"
+
+  - type: BASH
+    description: delete topics  in //
+    kafka: teamA
+    showOutput: true
+    script: |
+      for topic_number in `seq 100`; do 
+        echo unlimited-${topic_number}; 
+      done | \
+        xargs -I _ -P15 kafka-topics \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --command-config teamA.properties \
+          --delete --topic _
+    assertOutputDoesNotContain:
+      - Error while executing topic command
+
+  - type: BASH
+    description: assert 0 topic
+    kafka: kafka1
+    showOutput: true
+    script: |
+      echo nb topics = $(curl \
+        --silent \
+        --user 'admin:conduktor' \
+        --header 'Content-Type: application/json' \
+        localhost:8888/topics/teamA | jq 'length')
+
+      echo nb topics mappings = $(curl \
+        --silent \
+        --user 'admin:conduktor' \
+        --header 'Content-Type: application/json' \
+        localhost:8888/topicMappings/teamA | jq 'length')
+
+      echo nb physical topics = $(kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --list | wc -l)
+    assertOutputContains:
+      - nb topics = 0
+      - nb topics mappings = 1
+      - nb physical topics = 11
+
+  - type: SUCCESS
