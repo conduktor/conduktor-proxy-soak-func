@@ -3,6 +3,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper
+    container_name: zookeeper
     ports:
       - "2801:2801"
     environment:
@@ -91,6 +92,7 @@ services:
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
     hostname: schema-registry
+    container_name: schema-registry
     ports:
       - "8081:8081"
     environment:

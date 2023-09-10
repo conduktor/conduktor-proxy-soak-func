@@ -121,31 +121,30 @@ public class ScenarioTest {
         log.info("Start to test: {}", scenario.getTitle());
         var actions = scenario.getActions();
 
-        Map<String, Properties> clusters = scenario.toServiceProperties();
         var composeFileContent = getUpdatedDockerCompose(scenario);
-        System.out.println(executionFolder);
-        FileUtils.writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.directory(executionFolder.toFile());
-        processBuilder.command("docker", "compose", "up", "--wait", "--detach");
-        processBuilder.redirectErrorStream(true);
-        Process process = processBuilder.start();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String ret = "";
-            String line;
-            while ((line = reader.readLine()) != null) {
-                ret = ret + line + "\n";
-                System.out.println(line);
-            }
-        }
-        process.waitFor();
+        buildAndrunDockerCompose(composeFileContent);
+        runScenarioSteps(scenario, actions);
+    }
 
+    private void runScenarioSteps(Scenario scenario, LinkedList<Scenario.Action> actions) throws Exception {
+        Map<String, Properties> clusters = scenario.toServiceProperties();
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
                 step(clusters, clientFactory, ++id, _action);
             }
         }
+    }
+
+    private void buildAndrunDockerCompose(String composeFileContent) throws IOException, InterruptedException {
+        FileUtils.writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.directory(executionFolder.toFile());
+        processBuilder.command("docker", "compose", "up", "--wait", "--detach");
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        System.out.println("Running Docker Compose in " + executionFolder);
+        process.waitFor();
     }
 
     @AfterAll
@@ -194,7 +193,7 @@ public class ScenarioTest {
                     VClusterCreateResponse response = createVirtualCluster(gateway, name, username);
 
                     Properties properties = clusters.getOrDefault(name, new Properties());
-                    properties.put("bootstrap.servers", "localhost:6969");
+                    properties.put("bootstrap.servers", "localhost:6969,gateway1:6969");
                     properties.put("security.protocol", "SASL_PLAINTEXT");
                     properties.put("sasl.mechanism", "PLAIN");
                     properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
@@ -421,22 +420,26 @@ public class ScenarioTest {
     private void execute(int id, String script, Scenario.ScriptAction action, Properties properties) {
         File scriptFile = null;
         try {
-            scriptFile = new File(executionFolder + "/step-" + id + "." + script);
-            String data = (action.getScript().startsWith("#!/bin") ? "" : "#!/bin/" + script + "\n") + action.getScript();
-            FileUtils.writeStringToFile(scriptFile, data, Charset.defaultCharset());
 
-            Map<String, String> map = new HashMap<>(properties.size());
+            scriptFile = new File(executionFolder + "/step-" + id + "." + script);
+            String expandedScript = (action.getScript().startsWith("#!/bin") ? "" : "#!/bin/" + script + "\n") + action.getScript();
+
+            var env = new HashMap<String, String>();
             for (String key : properties.stringPropertyNames()) {
                 String formattedKey = key.toUpperCase().replace(".", "_");
                 String value = properties.getProperty(key);
-                map.put(formattedKey, value);
+                expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
+                env.put(formattedKey, value);
             }
+
+            FileUtils.writeStringToFile(scriptFile, expandedScript, Charset.defaultCharset());
+
 
             ProcessBuilder processBuilder = new ProcessBuilder();
             processBuilder.directory(executionFolder.toFile());
-            processBuilder.environment().putAll(map);
             processBuilder.command(script, scriptFile.getAbsolutePath());
             processBuilder.redirectErrorStream(true);
+            processBuilder.environment().putAll(env);
             Process process = processBuilder.start();
 
 

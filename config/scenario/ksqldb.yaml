@@ -1,0 +1,131 @@
+title: ksqldb
+services:
+  kafka1:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka2:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  kafka3:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway1:
+    docker:
+      image: conduktor/conduktor-gateway:2.1.2
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway2:
+    docker:
+      image: conduktor/conduktor-gateway:2.1.2
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  ksqldb-server:
+    docker:
+      image: confluentinc/ksqldb-server:0.29.0
+      hostname: ksqldb-server
+      container_name: ksqldb-server
+      network_mode: host
+      profiles:
+        - ksqldb
+      depends_on:
+        kafka1:
+          condition: service_healthy
+        kafka2:
+          condition: service_healthy
+        kafka3:
+          condition: service_healthy
+      ports:
+        - "8088:8088"
+      healthcheck:
+        test: curl localhost:8088/health
+        interval: 5s
+        retries: 25
+      environment:
+        KSQL_LISTENERS: http://0.0.0.0:8088
+        KSQL_BOOTSTRAP_SERVERS: ${BOOTSTRAP_SERVERS}
+        KSQL_SECURITY_PROTOCOL: ${SECURITY_PROTOCOL}
+        KSQL_SASL_MECHANISM: ${SASL_MECHANISM}
+        KSQL_SASL_JAAS_CONFIG: ${SASL_JAAS_CONFIG}
+        KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: "true"
+        KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
+  ksqldb-cli:
+    docker:
+      image: confluentinc/ksqldb-cli:0.29.0
+      container_name: ksqldb-cli
+      profiles:
+        - ksqldb
+      depends_on:
+        ksqldb-server:
+          condition: service_healthy
+      entrypoint: /bin/sh
+      tty: "true"
+actions:
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway1
+    names:
+      - teamA
+
+  - type: BASH
+    showOutput: true
+    script: |
+      curl \
+        --silent \
+        --request POST 'localhost:8888/topicMappings/teamA/.*' \
+        --user 'admin:conduktor' \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+          "topicName": "concentrated",
+          "isVirtual": true
+        }'
+
+  - type: BASH
+    showOutput: true
+    kafka: teamA
+    script: |
+      docker compose --profile ksqldb up -d --wait
+
+  - type: LIST_TOPICS
+    kafka: teamA
+    assertExists:
+      - _confluent-ksql-default__command_topic
+      - default_ksql_processing_log
+
+  - type: LIST_TOPICS
+    kafka: kafka1
+    assertExists:
+      - concentrated
+    assertDoesNotExist:
+      - _confluent-ksql-default__command_topic
+      - default_ksql_processing_log

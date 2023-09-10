@@ -26,7 +26,7 @@ services:
       client.id: clientId
   gateway1:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro
+      image: conduktor/conduktor-gateway:2.1.2
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -39,7 +39,7 @@ services:
       client.id: clientId
   gateway2:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro
+      image: conduktor/conduktor-gateway:2.1.2
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -54,7 +54,7 @@ services:
     docker:
       hostname: gateway-public
       container_name: gateway-public
-      image: ghcr.io/conduktor/conduktor-gateway-distro
+      image: conduktor/conduktor-gateway:2.1.2
       environment:
         KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
         GATEWAY_START_PORT: 17969
@@ -130,9 +130,9 @@ actions:
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
         --list | wc -l)
     assertOutputContains:
-      - nb topics = 100
-      - nb topics mappings = 101
-      - nb physical topics = 11
+      - "nb topics = 100"
+      - "nb topics mappings = 101"
+      - "nb physical topics = 11"
 
   - type: BASH
     description: send data to the 100 topics in //
@@ -157,6 +157,8 @@ actions:
         --topic concentrated_compacted \
         --from-beginning \
         --max-messages 100 | wc -l
+    assertOutputContains:
+      - "Processed a total of 100 messages"
 
   - type: BASH
     description: consume data to the topics using groups in //
@@ -183,6 +185,8 @@ actions:
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
         --command-config teamA.properties \
         --list | wc -l )
+    assertOutputContains:
+      - "number of consumer groups  100"
 
   - type: BASH
     description: describe each consumer groups
@@ -213,7 +217,7 @@ actions:
           --command-config teamA.properties \
           --delete --topic _
     assertOutputDoesNotContain:
-      - Error while executing topic command
+      - "Error while executing topic command"
 
   - type: BASH
     description: assert 0 topic
@@ -236,8 +240,8 @@ actions:
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
         --list | wc -l)
     assertOutputContains:
-      - nb topics = 0
-      - nb topics mappings = 1
-      - nb physical topics = 11
+      - "nb topics = 0"
+      - "nb topics mappings = 1"
+      - "nb physical topics = 11"
 
   - type: SUCCESS
