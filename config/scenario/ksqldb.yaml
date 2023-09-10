@@ -26,7 +26,7 @@ services:
       client.id: clientId
   gateway1:
     docker:
-      image: conduktor/conduktor-gateway:2.1.2
+      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -39,7 +39,7 @@ services:
       client.id: clientId
   gateway2:
     docker:
-      image: conduktor/conduktor-gateway:2.1.2
+      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT

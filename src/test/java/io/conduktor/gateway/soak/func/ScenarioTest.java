@@ -193,7 +193,7 @@ public class ScenarioTest {
                     VClusterCreateResponse response = createVirtualCluster(gateway, name, username);
 
                     Properties properties = clusters.getOrDefault(name, new Properties());
-                    properties.put("bootstrap.servers", "localhost:6969,gateway1:6969");
+                    properties.put("bootstrap.servers", "localhost:6969,localhost:1969");
                     properties.put("security.protocol", "SASL_PLAINTEXT");
                     properties.put("sasl.mechanism", "PLAIN");
                     properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
