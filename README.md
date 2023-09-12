@@ -17,7 +17,7 @@ docker:
     version: latest
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
-  gateway:
+  gateway1:
     version: 2.0.0-amd64
     environment:
       GATEWAY_SECURITY_PROTOCOL: SASL_SSL
@@ -117,7 +117,7 @@ docker:
     version: latest
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
-  gateway:
+  gateway1:
     version: 2.0.0-amd64
     environment:
       GATEWAY_SECURITY_PROTOCOL: SASL_SSL

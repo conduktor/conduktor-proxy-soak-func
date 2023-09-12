@@ -18,21 +18,32 @@ services:
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  gateway:
+  gateway1:
     docker:
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
-      bootstrap.servers: localhost:6969
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway2:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
 actions:
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    gateway: gateway
+    gateway: gateway1
     names:
       - teamA
 
@@ -49,7 +60,7 @@ actions:
       - users
 
   - type: ADD_INTERCEPTORS
-    gateway: gateway
+    gateway: gateway1
     interceptors:
       teamA:
         schema-id:
@@ -61,7 +72,7 @@ actions:
           }
 
   - type: LIST_INTERCEPTORS
-    gateway: gateway
+    gateway: gateway1
     vcluster: teamA
     assertSize: 1
     assertNames:
@@ -97,7 +108,7 @@ actions:
           "visa": "visa123456",
           "address": "Conduktor Towers, London"
       }' | jq -c | kafka-json-schema-console-producer  \
-              --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+              --bootstrap-server ${BOOTSTRAP_SERVERS} \
               --producer.config teamA.properties \
               --topic users \
               --property schema.registry.url=http://localhost:8081 \

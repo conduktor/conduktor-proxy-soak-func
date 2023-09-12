@@ -380,7 +380,7 @@ public class ScenarioTest {
                             -u "admin:conduktor" \\
                             --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
                             --header 'Content-Type: application/json'| jq
-                        """, "gateway:8888", "teamA"));
+                        """, "gateway1:8888", "teamA"));
             }
             case BASH -> {
                 var action = ((Scenario.BashAction) _action);

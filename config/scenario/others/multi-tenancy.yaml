@@ -18,14 +18,25 @@ services:
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  gateway:
+  gateway1:
     docker:
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
-      bootstrap.servers: localhost:6969
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway2:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
@@ -45,7 +56,7 @@ actions:
       - _topicMappings
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    gateway: gateway
+    gateway: gateway1
     names:
       - london
       - paris

@@ -18,20 +18,31 @@ services:
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  gateway:
+  gateway1:
     docker:
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
-      bootstrap.servers: localhost:6969
+      bootstrap.servers: localhost:6969,localhost:7969
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: clientId
+  gateway2:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
 actions:
   - type: CREATE_VIRTUAL_CLUSTERS
-    gateway: gateway
+    gateway: gateway1
     names:
       - teamA
 
@@ -112,6 +123,67 @@ actions:
      
       One with 10 partitions
 
+  - type: BASH
+    kafka: teamA
+    showOutput: true
+    script: |
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --topic concentrated-normal \
+        --create
+      
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --topic concentrated-delete \
+        --config cleanup.policy=delete \
+        --create
+  
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config cleanup.policy=compact \
+        --topic concentrated-compact \
+        --create
+
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config cleanup.policy=delete,compact \
+        --topic concentrated-delete-compact \
+        --create
+
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config cleanup.policy=compact,delete \
+        --topic concentrated-compact-delete \
+        --create
+
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config retention.ms=10000 \
+        --topic concentrated-small-retention \
+        --create
+
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config retention.ms=6048000000 \
+        --topic concentrated-large-retention \
+        --create
+
+      kafka-topics \
+        --bootstrap-server localhost:6969 \
+        --command-config teamA.properties \
+        --list
+
+      kafka-topics \
+        --bootstrap-server localhost:29092 \
+        --describe
+
   - type: CREATE_TOPICS
     kafka: teamA
     topics:
@@ -122,13 +194,11 @@ actions:
         replicationFactor: 1
         partitions: 100
 
-
   - type: LIST_TOPICS
     kafka: teamA
     assertExists:
       - concentrated-topic-with-10-partitions
       - concentrated-topic-with-100-partitions
-
 
   - type: MARKDOWN
     markdown: |
@@ -167,6 +237,12 @@ actions:
         value:
           operator: contains
           expected: '{"msg":"hello world"}'
+
+  - type: BASH
+    showOutput: true
+    kafka: teamA
+    script: |
+      docker compose --profile ksqldb up -d --wait
 
   - type: SUCCESS
     description: Done

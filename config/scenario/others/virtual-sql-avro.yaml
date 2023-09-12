@@ -24,9 +24,8 @@ services:
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  gateway:
+  gateway1:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -38,7 +37,6 @@ services:
       client.id: clientId
   gateway2:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -51,7 +49,7 @@ services:
 actions:
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    gateway: gateway
+    gateway: gateway1
     names:
       - teamA
 
@@ -74,7 +72,7 @@ actions:
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       echo '{"type":"Sports","price":75,"color":"blue"}' | \
           kafka-avro-console-producer  \
-              --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+              --bootstrap-server ${BOOTSTRAP_SERVERS} \
               --producer.config teamA.properties \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
@@ -90,7 +88,7 @@ actions:
       
       echo '{"type":"SUV","price":55,"color":"red"}' | \
           kafka-avro-console-producer  \
-              --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+              --bootstrap-server ${BOOTSTRAP_SERVERS} \
               --producer.config teamA.properties \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
@@ -110,7 +108,7 @@ actions:
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
-          --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
           --consumer.config teamA.properties \
           --topic cars \
           --property schema.registry.url=http://localhost:8081 \
@@ -125,7 +123,7 @@ actions:
         partitions: 1
 
   - type: ADD_INTERCEPTORS
-    gateway: gateway
+    gateway: gateway1
     interceptors:
       teamA:
         red-cars:
@@ -140,7 +138,7 @@ actions:
           }
 
   - type: LIST_INTERCEPTORS
-    gateway: gateway
+    gateway: gateway1
     vcluster: teamA
     assertSize: 1
     assertNames:
@@ -152,7 +150,7 @@ actions:
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
-          --bootstrap-server bootstrap.servers=${BOOTSTRAP_SERVERS} \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
           --consumer.config teamA.properties \
           --topic red-cars \
           --property schema.registry.url=http://localhost:8081 \
