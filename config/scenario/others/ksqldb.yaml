@@ -53,7 +53,7 @@ services:
 actions:
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    gateway: gateway11
+    gateway: gateway1
     names:
       - teamA
 
