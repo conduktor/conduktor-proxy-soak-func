@@ -24,10 +24,10 @@ services:
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  backup-kafka-1:
+  failover-kafka1:
     docker:
-      hostname: backup-kafka-1
-      container_name: backup-kafka-1
+      hostname: failover-kafka1
+      container_name: failover-kafka1
       image: confluentinc/cp-kafka:latest
       ports:
         - "39092:29092"
@@ -35,7 +35,7 @@ services:
         KAFKA_BROKER_ID: 1
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://backup-kafka-1:9092,EXTERNAL_SAME_HOST://localhost:29092
+        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka1:9092,EXTERNAL_SAME_HOST://localhost:29092
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -46,21 +46,21 @@ services:
         zookeeper:
           condition: service_healthy
       healthcheck:
-        test: nc -zv backup-kafka-1 9092 || exit 1
+        test: nc -zv failover-kafka1 9092 || exit 1
         interval: 5s
         retries: 25
-  backup-kafka-2:
+  failover-kafka2:
     docker:
-      hostname: backup-kafka-2
-      container_name: backup-kafka-2
+      hostname: failover-kafka2
+      container_name: failover-kafka2
       image: confluentinc/cp-kafka:latest
       ports:
         - "39093:29093"
       environment:
-        KAFKA_BROKER_ID: 1
+        KAFKA_BROKER_ID: 2
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29093,INTERNAL://:9093
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://backup-kafka-2:9093,EXTERNAL_SAME_HOST://localhost:29093
+        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka2:9093,EXTERNAL_SAME_HOST://localhost:29093
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -71,21 +71,21 @@ services:
         zookeeper:
           condition: service_healthy
       healthcheck:
-        test: nc -zv backup-kafka-2 9093 || exit 1
+        test: nc -zv failover-kafka2 9093 || exit 1
         interval: 5s
         retries: 25
-  backup-kafka-3:
+  failover-kafka3:
     docker:
-      hostname: backup-kafka-3
-      container_name: backup-kafka-3
+      hostname: failover-kafka3
+      container_name: failover-kafka3
       image: confluentinc/cp-kafka:latest
       ports:
         - "39094:29094"
       environment:
-        KAFKA_BROKER_ID: 1
+        KAFKA_BROKER_ID: 3
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29094,INTERNAL://:9094
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://backup-kafka-1:9094,EXTERNAL_SAME_HOST://localhost:29094
+        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka1:9094,EXTERNAL_SAME_HOST://localhost:29094
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -96,7 +96,7 @@ services:
         zookeeper:
           condition: service_healthy
       healthcheck:
-        test: nc -zv backup-kafka-3 9094 || exit 1
+        test: nc -zv failover-kafka3 9094 || exit 1
         interval: 5s
         retries: 25
   gateway1:
@@ -107,7 +107,12 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_CLUSTER_ID: private
-        GATEWAY_BACKEND_KAFKA_SELECTOR: file://config/cluter-switching-clusters.yaml
+        GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path:  /config/cluster-switching-clusters.yaml}'
+      volumes:
+        - type: bind
+          source: "../config"
+          target: /config
+          read_only: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
@@ -121,12 +126,42 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_CLUSTER_ID: private
-        GATEWAY_BACKEND_KAFKA_SELECTOR: file://config/cluter-switching-clusters.yaml
+        GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path:  /config/cluster-switching-clusters.yaml}'
+      volumes:
+        - type: bind
+          source: "../config"
+          target: /config
+          read_only: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
+  mirror-maker:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      container_name: mirror-maker
+      hostname: mirror-maker
+      volumes:
+        - type: bind
+          source: "../config"
+          target: /config
+          read_only: true
+      command: connect-mirror-maker /config/mm2.properties
+      depends_on:
+        kafka1:
+          condition: service_healthy
+        kafka2:
+          condition: service_healthy
+        kafka3:
+          condition: service_healthy
+        failover-kafka1:
+          condition: service_healthy
+        failover-kafka2:
+          condition: service_healthy
+        failover-kafka3:
+          condition: service_healthy
+
 actions:
 
   - type: CREATE_TOPICS
@@ -136,6 +171,15 @@ actions:
         replicationFactor: 1
         partitions: 1
 
+  - type: BASH
+    kafka: teamA
+    showOutput: true
+    script: |
+      sleep 10
 
+  - type: LIST_TOPICS
+    kafka: failover-kafka1
+    assertExists:
+      - users
 
   - type: SUCCESS
