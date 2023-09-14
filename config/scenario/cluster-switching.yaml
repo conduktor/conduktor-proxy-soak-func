@@ -5,25 +5,16 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka2:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka3:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   failover-kafka1:
     docker:
       hostname: failover-kafka1
@@ -51,9 +42,6 @@ services:
         retries: 25
     properties:
       bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: failover-clientId
   failover-kafka2:
     docker:
       hostname: failover-kafka2
@@ -81,9 +69,6 @@ services:
         retries: 25
     properties:
       bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: failover-clientId
   failover-kafka3:
     docker:
       hostname: failover-kafka3
@@ -111,9 +96,6 @@ services:
         retries: 25
     properties:
       bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: failover-clientId
   mirror-maker:
     docker:
       image: confluentinc/cp-kafka:latest
@@ -157,10 +139,8 @@ services:
           target: /config
           read_only: true
     properties:
-      bootstrap.servers: localhost:6969,localhost:7969
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: gateway1-clientId
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8888
 
   gateway2:
     docker:
@@ -177,27 +157,27 @@ services:
           target: /config
           read_only: true
     properties:
-      bootstrap.servers: localhost:6969,localhost:7969
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: gateway2-clientId
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8889
 
 actions:
 
-  - type: BASH
+  - type: SH
     description: Start mirror maker
     script: |
-      docker compose exec mirror-maker connect-mirror-maker -daemon /config/mm2.properties
+      docker compose exec mirror-maker \
+        connect-mirror-maker -daemon \
+          /config/mm2.properties
 
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
-    names:
-      - teamA
+    name: teamA
 
   - type: CREATE_TOPICS
     description: create topic users
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: users
         replicationFactor: 1
@@ -206,6 +186,7 @@ actions:
   - type: PRODUCE
     description: send tom and florent into topic users
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: users
     messages:
       - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
@@ -225,14 +206,23 @@ actions:
       - _topicRegistry
       - teamAusers
 
-  - type: BASH
+  - type: SH
     description: Wait for mirror maker to do its job
     showOutput: true
     kafka: failover-kafka1
     script: |
-      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic _topicMappings --from-beginning --max-messages 1
-      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic teamAusers --from-beginning --max-messages 1
-
+      docker compose exec failover-kafka1 \
+        kafka-console-consumer \
+          --bootstrap-server localhost:9092 \
+          --topic _topicMappings \
+          --from-beginning \
+          --max-messages 1
+      docker compose exec failover-kafka1 \
+        kafka-console-consumer \
+          --bootstrap-server localhost:9092 \
+          --topic teamAusers \
+          --from-beginning \
+          --max-messages 1
 
   - type: LIST_TOPICS
     description: assert mirror maker did its job
@@ -249,7 +239,7 @@ actions:
       - _topicRegistry
       - teamAusers
 
-  - type: BASH
+  - type: SH
     description: Call the switch api
     showOutput: true
     script: |
@@ -268,6 +258,7 @@ actions:
   - type: PRODUCE
     description: produce thibault into users, it should hit only failover-kafka
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: users
     messages:
       - value: '{"name":"thibaut","username":"thibaut@conduktor.io","password":"youpi","visa":"#812SSS","address":"Les ifs"}'
@@ -275,8 +266,7 @@ actions:
   - type: CONSUME
     description: verify we can read florent, and tom (via mirror maker) and thibault (via switch)
     kafka: teamA
-    properties:
-      auto.offset.reset: earliest
+    kafkaConfig: teamA-sa.properties
     topics:
       - users
     assertSize: 3
@@ -289,8 +279,6 @@ actions:
   - type: CONSUME
     description: verify thibaut is not in main kafka
     kafka: kafka1
-    properties:
-      auto.offset.reset: earliest
     topics:
       - teamAusers
     assertSize: 2
@@ -303,8 +291,6 @@ actions:
   - type: CONSUME
     description: verify thibaut is in failover
     kafka: failover-kafka1
-    properties:
-      auto.offset.reset: earliest
     topics:
       - teamAusers
     assertions:

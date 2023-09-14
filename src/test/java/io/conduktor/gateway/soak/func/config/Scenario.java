@@ -55,7 +55,6 @@ public class Scenario {
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = MarkdownAction.class, name = "MARKDOWN"),
             @JsonSubTypes.Type(value = SuccessAction.class, name = "SUCCESS"),
-            @JsonSubTypes.Type(value = BashAction.class, name = "BASH"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
             @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES")
@@ -75,6 +74,7 @@ public class Scenario {
     @Data
     public static class KafkaAction extends Action {
         public String kafka;
+        private String kafkaConfig;
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
     }
 
@@ -148,7 +148,7 @@ public class Scenario {
         private LinkedList<RecordAssertion> assertions = new LinkedList<>();
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
         private int timeout = 5000;
-        private int maxMessages = 100;
+        private Integer maxMessages;
         private Integer assertSize;
         private boolean showRecords = false;
         private List<String> topics;
@@ -158,7 +158,8 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateVirtualClustersAction extends GatewayAction {
-        public List<String> names;
+        public String name;
+        public String serviceAccount = "sa";
     }
 
     @Data
@@ -201,6 +202,7 @@ public class Scenario {
         public String markdown;
     }
 
+    @Data
     public static class GatewayAction extends Action {
         public String gateway;
     }
@@ -231,10 +233,6 @@ public class Scenario {
 
     public interface HasKafka {
         String getKafka();
-    }
-
-    @Data
-    public static class BashAction extends ScriptAction implements HasKafka {
     }
 
     @Data
@@ -289,7 +287,6 @@ public class Scenario {
         ADD_INTERCEPTORS,
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS,
-        BASH,
         SH,
         DESCRIBE_KAFKA_PROPERTIES;
     }

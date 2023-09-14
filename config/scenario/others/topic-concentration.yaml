@@ -100,7 +100,7 @@ actions:
       We only have to tell Gateway how to map client topics to concentrated topics.
       In this case, any  client topic started with `concentrated-` will be concentrated to the `hold-many-virtual-topics`.
 
-  - type: BASH
+  - type: SH
     kafka: kafka1
     showOutput: true
     script: |
@@ -123,7 +123,7 @@ actions:
      
       One with 10 partitions
 
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |
@@ -238,7 +238,7 @@ actions:
           operator: contains
           expected: '{"msg":"hello world"}'
 
-  - type: BASH
+  - type: SH
     showOutput: true
     kafka: teamA
     script: |

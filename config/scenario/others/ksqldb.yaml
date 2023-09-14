@@ -57,7 +57,7 @@ actions:
     names:
       - teamA
 
-  - type: BASH
+  - type: SH
     showOutput: true
     script: |
       curl \
@@ -70,7 +70,7 @@ actions:
           "isVirtual": true
         }'
 
-  - type: BASH
+  - type: SH
     showOutput: true
     kafka: teamA
     script: |

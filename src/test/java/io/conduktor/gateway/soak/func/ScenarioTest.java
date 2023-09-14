@@ -14,7 +14,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -47,6 +46,8 @@ import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
 import static io.restassured.RestAssured.given;
+import static org.apache.commons.io.FileUtils.writeStringToFile;
+import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.http.HttpStatus.SC_CREATED;
 import static org.apache.http.HttpStatus.SC_OK;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -126,18 +127,21 @@ public class ScenarioTest {
         runScenarioSteps(scenario, actions);
     }
 
+    private Scenario scenario;
+
     private void runScenarioSteps(Scenario scenario, LinkedList<Scenario.Action> actions) throws Exception {
         Map<String, Properties> clusters = scenario.toServiceProperties();
+        this.scenario = scenario;
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
-                step(clusters, clientFactory, ++id, _action);
+                step(clusters, clientFactory, String.format("%02d", ++id), _action);
             }
         }
     }
 
     private void buildAndrunDockerCompose(String composeFileContent) throws IOException, InterruptedException {
-        FileUtils.writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
+        writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.directory(executionFolder.toFile());
         processBuilder.command("docker", "compose", "up", "--wait", "--detach");
@@ -167,7 +171,7 @@ public class ScenarioTest {
         }
     }
 
-    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int id, Scenario.Action _action) throws Exception {
+    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, String id, Scenario.Action _action) throws Exception {
         log.info("[" + id + "] Executing " + _action.simpleMessage());
 
         switch (_action.getType()) {
@@ -186,31 +190,42 @@ public class ScenarioTest {
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
-                List<String> names = action.getNames();
-                String gateway = "localhost:8888";
-                String username = "sa";
-                for (String name : names) {
-                    VClusterCreateResponse response = createVirtualCluster(gateway, name, username);
+                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                String gateway = gatewayProperties.get("gateway.host");
+                VClusterCreateResponse response = createVirtualCluster(gateway, action.getName(), action.getServiceAccount());
 
-                    Properties properties = clusters.getOrDefault(name, new Properties());
-                    properties.put("bootstrap.servers", "localhost:6969,localhost:1969");
-                    properties.put("security.protocol", "SASL_PLAINTEXT");
-                    properties.put("sasl.mechanism", "PLAIN");
-                    properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"" + username + "\" password=\"" + response.getToken() + "\";");
-                    properties.put("auto.offset.reset", "earliest");
-                    clusters.put(name, properties);
+                Properties properties = clusters.getOrDefault(action.getName(), new Properties());
+                properties.put("bootstrap.servers", gatewayProperties.get("bootstrap.servers"));
+                properties.put("security.protocol", "SASL_PLAINTEXT");
+                properties.put("sasl.mechanism", "PLAIN");
+                properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
+                clusters.put(action.getName(), properties);
 
-                    savePropertiesToFile(new File(executionFolder + "/" + name + ".properties"), properties);
+                savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
-                    if (false) System.out.println(String.format("""
-                           curl \\
-                               --silent \\
-                               --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
-                               --user 'admin:conduktor' \\
-                               --header 'Content-Type: application/json' \\
-                               --data-raw '{"lifeTimeSeconds": 7776000}'
-                            """, gateway, name, username));
-                }
+                code(action, id, """
+                                token=$(curl \\
+                                    --silent \\
+                                    --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
+                                    --user 'admin:conduktor' \\
+                                    --header 'Content-Type: application/json' \\
+                                    --data-raw '{"lifeTimeSeconds": 7776000}' | jq -r ".token")
+                                    
+                                echo  \"\"\"
+                                bootstrap.servers=%s
+                                security.protocol=SASL_PLAINTEXT
+                                sasl.mechanism=PLAIN
+                                sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='$token';
+                                \"\"\" > %s-%s.properties
+                                """,
+                        gateway,
+                        action.getName(),
+                        action.getServiceAccount(),
+                        gatewayProperties.get("bootstrap.servers"),
+                        action.getServiceAccount(),
+                        action.getName(),
+                        action.getServiceAccount());
+
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
@@ -225,16 +240,22 @@ public class ScenarioTest {
                                 Assertions.fail("Expected an error");
                             }
 
-                            if (false) System.out.println(String.format("""
-                                    kafka-topics \\
-                                        --bootstrap-server %s \\
-                                        --command-config /clientConfig/teamA-sa.properties \\
-                                        --replication-factor 1 \\
-                                        --partitions 1 \\
-                                        --create \\
-                                        --topic cars \\
-                                        --if-not-exists
-                                    """, clusters.get(action.getKafka()).getProperty("bootstrap.servers")));
+                            code(action, id, """
+                                            kafka-topics \\
+                                                --bootstrap-server %s \\
+                                                --command-config %s \\
+                                                --replication-factor %s \\
+                                                --partitions %s \\
+                                                --create --if-not-exists \\
+                                                --topic %s
+                                            """,
+                                    clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                    action.getKafkaConfig(),
+                                    "" + topic.getReplicationFactor(),
+                                    "" + topic.getPartitions(),
+                                    topic.getName()
+
+                            );
                         } catch (Exception e) {
                             if (!action.getAssertErrorMessages().isEmpty()) {
                                 assertThat(e.getMessage())
@@ -249,12 +270,13 @@ public class ScenarioTest {
                 var action = ((Scenario.ListTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     Set<String> topics = adminClient.listTopics().names().get();
-                    if (false) System.out.println(String.format("""
+                    code(action, id, """
                                     kafka-topics \\
-                                        --bootstrap-server %s \\
-                                        --command-config /clientConfig/teamA-sa.properties \\
+                                        --bootstrap-server %s%s\\
                                         --list
-                                    """, clusters.get(action.getKafka()).getProperty("bootstrap.servers")));
+                                    """,
+                            clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig());
                     System.out.println(topics);
                     if (Objects.nonNull(action.assertSize)) {
                         assertThat(topics)
@@ -277,6 +299,18 @@ public class ScenarioTest {
                             .describeTopics(action.topics)
                             .allTopicNames()
                             .get();
+                    for (String topic : action.topics) {
+                        code(action, id, """
+                                        kafka-topics \\
+                                            --bootstrap-server %s%s \\
+                                            --describe \\
+                                            --topic %s
+                                        """,
+                                clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
+                                topic);
+
+                    }
                     for (DescribeTopicsActionAssertions assertion : action.getAssertions()) {
                         assertThat(topics)
                                 .containsKey(assertion.getName());
@@ -299,17 +333,23 @@ public class ScenarioTest {
                     try {
                         produce(action.getTopic(), action.getMessages(), producer);
 
-                        for (Scenario.Message message : action.getMessages()) {
-                            if (false) System.out.println(String.format("""
-                                echo '%s' | \\
-                                   kafka-console-producer  \\
-                                       --bootstrap-server %s \\
-                                       --producer.config /clientConfig/teamA-sa.properties \\
-                                       --topic cars
-                                    """, message,
-                                    clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                                    action.getTopic()));
-                        }
+
+                        String command = action.getMessages()
+                                .stream()
+                                .map(message ->
+                                        String.format("""
+                                                        echo '%s' | \\
+                                                           kafka-console-producer  \\
+                                                               --bootstrap-server %s%s \\
+                                                               --topic %s
+                                                        """,
+                                                message.getValue(),
+                                                clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                                action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
+                                                action.getTopic()))
+                                .collect(Collectors.joining("\n"));
+                        code(action, id, command);
+
 
                         if (action.getAssertError() != null) {
                             Assertions.fail("Produce should have failed");
@@ -329,8 +369,11 @@ public class ScenarioTest {
                 if (!properties.containsKey("group.id")) {
                     properties.put("group.id", "step-" + id);
                 }
+                if (!properties.containsKey("auto.offset.reset")) {
+                    properties.put("auto.offset.reset", "earliest");
+                }
                 try (var consumer = clientFactory.consumer(properties)) {
-                    var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages(), action.getTimeout());
+                    var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages() == null ? 100 : action.getMaxMessages(), action.getTimeout());
                     if (action.isShowRecords()) {
                         records.stream().forEach(System.out::println);
                     }
@@ -341,30 +384,75 @@ public class ScenarioTest {
                     assertRecords(records, action.getAssertions());
                 }
                 for (String topic : action.getTopics()) {
-                    if (false) System.out.println(String.format("""
-                                echo '%s' | \\
-                                   kafka-console-producer  \\
-                                       --bootstrap-server %s \\
-                                       --producer.config /clientConfig/teamA-sa.properties \\
-                                       --topic cars
+                    code(action, id, """
+                                    kafka-console-consumer  \\
+                                        --bootstrap-server %s%s \\
+                                        --group %s \\
+                                        --topic %s%s%s
                                     """,
                             clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                            topic));
+                            properties.getProperty("group.id"),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
+                            topic,
+                            "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
+                            action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + action.getMaxMessages()
+                    );
                 }
             }
             case ADD_INTERCEPTORS -> {
                 var action = ((Scenario.AddInterceptorAction) _action);
                 configurePlugins(action.getInterceptors());
+                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                String gateway = gatewayProperties.get("gateway.host");
+                LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors = action.getInterceptors();
+                for (var request : interceptors.entrySet()) {
+                    LinkedHashMap<String, PluginRequest> plugins = request.getValue();
+                    String vcluster = request.getKey();
+                    for (var plugin : plugins.entrySet()) {
+                        var pluginName = plugin.getKey();
+                        var pluginBody = plugin.getValue();
+
+                        code(action, id, """
+                                        curl \\
+                                            --silent \\
+                                            --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
+                                            --user 'admin:conduktor' \\
+                                            --header 'Content-Type: application/json' \\
+                                            --data-raw '%s'
+                                        """,
+                                gateway,
+                                vcluster,
+                                pluginName,
+                                new ObjectMapper().writeValueAsString(pluginBody));
+                    }
+
+                }
+
+
             }
             case REMOVE_INTERCEPTORS -> {
                 var action = ((Scenario.RemoveInterceptorAction) _action);
+                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                String gateway = gatewayProperties.get("gateway.host");
                 for (String name : action.getNames()) {
-                    removePlugin(action.vcluster, name);
+                    removePlugin(gateway, action.vcluster, name);
+                    code(action, id, """
+                                    curl \\
+                                        --silent \\
+                                        --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
+                                        --user 'admin:conduktor' \\
+                                        --header 'Content-Type: application/json' \\
+                                        --data-raw '%s'
+                                    """,
+                            gateway,
+                            name);
                 }
             }
             case LIST_INTERCEPTORS -> {
                 var action = ((Scenario.ListInterceptorAction) _action);
-                TenantInterceptorsResponse response = getPlugins(action.vcluster);
+                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                String gateway = gatewayProperties.get("gateway.host");
+                TenantInterceptorsResponse response = getPlugins(gateway, action.vcluster);
 
                 if (Objects.nonNull(action.assertSize)) {
                     assertThat(response.interceptors)
@@ -375,20 +463,18 @@ public class ScenarioTest {
                             .extracting(PluginResponse::getName)
                             .contains(assertion);
                 }
-                if (false) System.out.println(String.format("""
-                        curl \\
-                            -u "admin:conduktor" \\
-                            --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
-                            --header 'Content-Type: application/json'| jq
-                        """, "gateway1:8888", "teamA"));
-            }
-            case BASH -> {
-                var action = ((Scenario.BashAction) _action);
-                execute(id, "bash", action, getProperties(clusters, action));
+                code(action, id, """
+                                curl \\
+                                    -u "admin:conduktor" \\
+                                    --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
+                                    --header 'Content-Type: application/json'| jq
+                                """,
+                        gateway,
+                        action.vcluster);
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
-                execute(id, "sh", action, getProperties(clusters, action));
+                execute(id, action, getProperties(clusters, action));
             }
             case DESCRIBE_KAFKA_PROPERTIES -> {
                 var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
@@ -404,9 +490,11 @@ public class ScenarioTest {
                             .containsAll(action.assertValues);
                 }
 
-                if (false) System.out.println(String.format("""
-                        cat clientConfig/%s-sa.properties
-                        """, "teamA"));
+
+                code(action, id, """
+                                cat clientConfig/%s
+                                """,
+                        action.getKafkaConfig());
 
             }
         }
@@ -414,64 +502,55 @@ public class ScenarioTest {
 
     private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
         String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(Collectors.joining("\n"));
-        FileUtils.writeStringToFile(propertiesFile, content, Charset.defaultCharset());
+        writeStringToFile(propertiesFile, content, Charset.defaultCharset());
     }
 
-    private void execute(int id, String script, Scenario.ScriptAction action, Properties properties) {
-        File scriptFile = null;
-        try {
+    private void execute(String id, Scenario.ScriptAction action, Properties properties) throws IOException, InterruptedException {
+        String expandedScript = action.getScript();
 
-            scriptFile = new File(executionFolder + "/step-" + id + "." + script);
-            String expandedScript = (action.getScript().startsWith("#!/bin") ? "" : "#!/bin/" + script + "\n") + action.getScript();
+        var env = new HashMap<String, String>();
+        for (String key : properties.stringPropertyNames()) {
+            String formattedKey = key.toUpperCase().replace(".", "_");
+            String value = properties.getProperty(key);
+            expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
+            env.put(formattedKey, value);
+        }
 
-            var env = new HashMap<String, String>();
-            for (String key : properties.stringPropertyNames()) {
-                String formattedKey = key.toUpperCase().replace(".", "_");
-                String value = properties.getProperty(key);
-                expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
-                env.put(formattedKey, value);
+        code(action, id, expandedScript);
+        File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
+        writeStringToFile(scriptFile, (action.getScript().startsWith("#!/bin/sh") ? "" : "#!/bin/sh\n") + action.getScript(), Charset.defaultCharset());
+
+
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        processBuilder.directory(executionFolder.toFile());
+        processBuilder.command("sh", scriptFile.getAbsolutePath());
+        processBuilder.redirectErrorStream(true);
+        processBuilder.environment().putAll(env);
+        Process process = processBuilder.start();
+
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String ret = "";
+            String line;
+            while ((line = reader.readLine()) != null) {
+                ret = ret + line + "\n";
             }
+            int exitCode = process.waitFor();
 
-            FileUtils.writeStringToFile(scriptFile, expandedScript, Charset.defaultCharset());
-
-
-            ProcessBuilder processBuilder = new ProcessBuilder();
-            processBuilder.directory(executionFolder.toFile());
-            processBuilder.command(script, scriptFile.getAbsolutePath());
-            processBuilder.redirectErrorStream(true);
-            processBuilder.environment().putAll(env);
-            Process process = processBuilder.start();
-
-
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String ret = "";
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    ret = ret + line + "\n";
-                }
-                int exitCode = process.waitFor();
-
-                if (action.showOutput) {
-                    log.info(ret);
-                }
-                if (action.assertExitCode != null) {
-                    assertThat(exitCode)
-                            .isEqualTo(action.assertExitCode);
-                }
-                if (!action.assertOutputContains.isEmpty()) {
-                    assertThat(ret)
-                            .contains(action.assertOutputContains);
-                }
-                if (!action.assertOutputDoesNotContain.isEmpty()) {
-                    assertThat(ret)
-                            .doesNotContain(action.assertOutputDoesNotContain);
-                }
+            if (action.showOutput) {
+                log.info(ret);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            if (scriptFile != null) {
-//                scriptFile.delete();
+            if (action.assertExitCode != null) {
+                assertThat(exitCode)
+                        .isEqualTo(action.assertExitCode);
+            }
+            if (!action.assertOutputContains.isEmpty()) {
+                assertThat(ret)
+                        .contains(action.assertOutputContains);
+            }
+            if (!action.assertOutputDoesNotContain.isEmpty()) {
+                assertThat(ret)
+                        .doesNotContain(action.assertOutputDoesNotContain);
             }
         }
     }
@@ -553,7 +632,7 @@ public class ScenarioTest {
     private static VClusterCreateResponse createVirtualCluster(String gateway, String vcluster, String username) {
         log.info("Creating virtual cluster " + vcluster);
         return given()
-                .baseUri("http://" + gateway + "/admin/vclusters/v1")
+                .baseUri(gateway + "/admin/vclusters/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
                 .contentType(ContentType.JSON)
@@ -567,9 +646,9 @@ public class ScenarioTest {
                 .as(VClusterCreateResponse.class);
     }
 
-    private static void removePlugin(String vcluster, String name) {
+    private static void removePlugin(String gateway, String vcluster, String name) {
         given()
-                .baseUri("http://localhost:8888/admin/interceptors/v1")
+                .baseUri(gateway + "/admin/interceptors/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
                 .contentType(ContentType.JSON).
@@ -586,9 +665,9 @@ public class ScenarioTest {
         List<PluginResponse> interceptors;
     }
 
-    private static TenantInterceptorsResponse getPlugins(String vcluster) {
+    private static TenantInterceptorsResponse getPlugins(String gateway, String vcluster) {
         return given()
-                .baseUri("http://localhost:8888/admin/interceptors/v1")
+                .baseUri(gateway + "/admin/interceptors/v1")
                 .auth()
                 .basic(ADMIN_USER, ADMIN_PASSWORD)
                 .contentType(ContentType.JSON).
@@ -678,6 +757,18 @@ public class ScenarioTest {
 
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private static void code(Scenario.Action action, String id, String format, String... args) {
+        String code = String.format(format, args);
+
+        try {
+            Path folder = executionFolder.getFileName();
+            writeStringToFile(new File(folder + "/run.sh"), "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription()) + "'\n" + code + "\n", Charset.defaultCharset(), true);
+            writeStringToFile(new File(folder + "/step-" + id + "-" + action.getType() + ".sh"), code, Charset.defaultCharset(), true);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

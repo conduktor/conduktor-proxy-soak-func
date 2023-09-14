@@ -57,7 +57,7 @@ actions:
     names:
       - teamA
 
-  - type: BASH
+  - type: SH
     showOutput: true
     script: |
         curl \
@@ -70,7 +70,7 @@ actions:
             "isVirtual": true
           }'
 
-  - type: BASH
+  - type: SH
     description: create 100 topics in //
     kafka: teamA
     showOutput: true
@@ -84,7 +84,7 @@ actions:
           --config cleanup.policy=compact \
           --create --topic _
 
-  - type: BASH
+  - type: SH
     description: assert 100 virtual topics
     kafka: kafka1
     showOutput: true
@@ -109,7 +109,7 @@ actions:
       - "nb topics mappings = 101"
       - "nb physical topics = 11"
 
-  - type: BASH
+  - type: SH
     description: send data to the 100 topics in //
     kafka: teamA
     showOutput: true
@@ -122,7 +122,7 @@ actions:
           --producer.config teamA.properties \
           --topic _"
 
-  - type: BASH
+  - type: SH
     description: assert 100 elements in
     kafka: kafka1
     showOutput: true
@@ -135,7 +135,7 @@ actions:
     assertOutputContains:
       - "Processed a total of 100 messages"
 
-  - type: BASH
+  - type: SH
     description: consume data to the topics using groups in //
     kafka: teamA
     showOutput: true
@@ -151,7 +151,7 @@ actions:
           --from-beginning \
           --max-messages 1"
 
-  - type: BASH
+  - type: SH
     description: assert number of consumer groups
     kafka: teamA
     showOutput: true
@@ -163,7 +163,7 @@ actions:
     assertOutputContains:
       - "number of consumer groups  100"
 
-  - type: BASH
+  - type: SH
     description: describe each consumer groups
     kafka: teamA
     showOutput: true
@@ -179,7 +179,7 @@ actions:
     assertOutputDoesNotContain:
       - "Error:"
 
-  - type: BASH
+  - type: SH
     description: delete topics  in //
     kafka: teamA
     showOutput: true
@@ -194,7 +194,7 @@ actions:
     assertOutputDoesNotContain:
       - "Error while executing topic command"
 
-  - type: BASH
+  - type: SH
     description: assert 0 topic
     kafka: kafka1
     showOutput: true
@@ -219,7 +219,7 @@ actions:
       - "nb topics mappings = 1"
       - "nb physical topics = 11"
 
-  - type: BASH
+  - type: SH
     description: create topic and initialize with simple data and fetch it
     kafka: teamA
     showOutput: true
@@ -256,7 +256,7 @@ actions:
           }
         }
 
-  - type: BASH
+  - type: SH
     description: read from topic and it works
     kafka: teamA
     showOutput: true
@@ -268,7 +268,7 @@ actions:
         --from-beginning \
         --max-messages 1 | jq
 
-  - type: BASH
+  - type: SH
     description: add transactional data
     kafka: teamA
     showOutput: true
@@ -278,7 +278,7 @@ actions:
           -t unlimited-cache \
           -X transactional.id=id
 
-  - type: BASH
+  - type: SH
     description: read from topic and it fails
     kafka: teamA
     showOutput: true

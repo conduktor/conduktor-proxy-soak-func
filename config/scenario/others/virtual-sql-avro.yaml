@@ -65,7 +65,7 @@ actions:
     assertExists:
       - cars
 
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |
@@ -102,7 +102,7 @@ actions:
                   ]
                 }'
       
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |
@@ -144,7 +144,7 @@ actions:
     assertNames:
       - red-cars
 
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |

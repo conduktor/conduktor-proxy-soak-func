@@ -221,7 +221,7 @@ actions:
           operator: containsIgnoreCase
           expected: '#888999XZ'
 
-  - type: BASH
+  - type: SH
     description: Listing created keys in Vault
     kafka: teamA
     showOutput: true
@@ -231,7 +231,7 @@ actions:
         --silent \
         --header "X-Vault-Token: vault-plaintext-root-token" | jq -r ".data.keys"
 
-  - type: BASH
+  - type: SH
     description: Remove florent related keys
     kafka: teamA
     showOutput: true

@@ -96,7 +96,7 @@ actions:
       - users
     assertSize: 0
 
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |
@@ -124,7 +124,7 @@ actions:
                   }
               }'
      
-  - type: BASH
+  - type: SH
     kafka: teamA
     showOutput: true
     script: |
