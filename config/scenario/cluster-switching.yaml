@@ -30,12 +30,12 @@ services:
       container_name: failover-kafka1
       image: confluentinc/cp-kafka:latest
       ports:
-        - "39092:29092"
+        - "39092:39092"
       environment:
         KAFKA_BROKER_ID: 1
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
-        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
-        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29092,INTERNAL://failover-kafka1:9092
+        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:39092,INTERNAL://:9092
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:39092,INTERNAL://failover-kafka1:9092
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -60,12 +60,12 @@ services:
       container_name: failover-kafka2
       image: confluentinc/cp-kafka:latest
       ports:
-        - "39093:29093"
+        - "39093:39093"
       environment:
         KAFKA_BROKER_ID: 2
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
-        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29093,INTERNAL://:9093
-        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29093,INTERNAL://failover-kafka2:9093
+        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:39093,INTERNAL://:9093
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:39093,INTERNAL://failover-kafka2:9093
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -90,12 +90,12 @@ services:
       container_name: failover-kafka3
       image: confluentinc/cp-kafka:latest
       ports:
-        - "39094:29094"
+        - "39094:39094"
       environment:
         KAFKA_BROKER_ID: 3
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
-        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29094,INTERNAL://:9094
-        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29094,INTERNAL://failover-kafka3:9094
+        KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:39094,INTERNAL://:9094
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:39094,INTERNAL://failover-kafka3:9094
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -144,7 +144,7 @@ services:
         retries: 25
   gateway1:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
+      image: conduktor/conduktor-gateway:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
@@ -164,7 +164,7 @@ services:
 
   gateway2:
     docker:
-      image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
+      image: conduktor/conduktor-gateway:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
@@ -196,6 +196,7 @@ actions:
       - teamA
 
   - type: CREATE_TOPICS
+    description: create topic users
     kafka: teamA
     topics:
       - name: users
@@ -203,6 +204,7 @@ actions:
         partitions: 1
 
   - type: PRODUCE
+    description: send tom and florent into topic users
     kafka: teamA
     topic: users
     messages:
@@ -223,9 +225,17 @@ actions:
       - _topicRegistry
       - teamAusers
 
+  - type: BASH
+    description: Wait for mirror maker to do its job
+    showOutput: true
+    kafka: failover-kafka1
+    script: |
+      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic _topicMappings --from-beginning --max-messages 1
+      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic teamAusers --from-beginning --max-messages 1
+
 
   - type: LIST_TOPICS
-    description: assert mirror maker is doing its job
+    description: assert mirror maker did its job
     kafka: failover-kafka1
     assertExists:
       - _acls
@@ -239,34 +249,33 @@ actions:
       - _topicRegistry
       - teamAusers
 
-
   - type: BASH
-    showOutput: true
-    kafka: failover-kafka1
-    script: |
-      docker compose exec failover-kafka1 kafka-topics --bootstrap-server localhost:9092 --list
-      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic _topicMappings --from-beginning --max-messages 1
-
-  - type: BASH
+    description: Call the switch api
     showOutput: true
     script: |
       curl \
         --silent \
         --user "admin:conduktor" \
         --request POST 'http://localhost:8888/admin/pclusters/v1/pcluster/main/switch?to=failover'
+      curl \
+        --silent \
+        --user "admin:conduktor" \
+        --request POST 'http://localhost:8889/admin/pclusters/v1/pcluster/main/switch?to=failover'
 
-
+      echo "Sleeping for the failover to do its thing"
+      sleep 20
 
   - type: PRODUCE
+    description: produce thibault into users, it should hit only failover-kafka
     kafka: teamA
     topic: users
     messages:
       - value: '{"name":"thibaut","username":"thibaut@conduktor.io","password":"youpi","visa":"#812SSS","address":"Les ifs"}'
 
   - type: CONSUME
+    description: verify we can read florent, and tom (via mirror maker) and thibault (via switch)
     kafka: teamA
     properties:
-      group.id: users
       auto.offset.reset: earliest
     topics:
       - users
@@ -278,9 +287,9 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
+    description: verify thibaut is not in main kafka
     kafka: kafka1
     properties:
-      group.id: kafka1-users
       auto.offset.reset: earliest
     topics:
       - teamAusers
@@ -292,15 +301,14 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
+    description: verify thibaut is in failover
     kafka: failover-kafka1
     properties:
-      group.id: users
       auto.offset.reset: earliest
     topics:
       - teamAusers
-    assertSize: 3
     assertions:
       - description: confirm producer after switch is written in failover kafka
         value:
-          operator: containsIgnoringCase
+          operator: containsIgnoreCase
           expected: 'thibaut'

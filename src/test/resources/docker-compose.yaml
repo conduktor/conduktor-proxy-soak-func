@@ -155,6 +155,7 @@ services:
       - "7969:7969"
       - "7970:7970"
       - "7971:7971"
+      - "8889:8888"
     healthcheck:
       test: curl localhost:8888/health
       interval: 5s
