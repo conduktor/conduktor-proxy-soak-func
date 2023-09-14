@@ -35,7 +35,7 @@ services:
         KAFKA_BROKER_ID: 1
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29092,INTERNAL://:9092
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka1:9092,EXTERNAL_SAME_HOST://localhost:29092
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29092,INTERNAL://failover-kafka1:9092
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -49,6 +49,11 @@ services:
         test: nc -zv failover-kafka1 9092 || exit 1
         interval: 5s
         retries: 25
+    properties:
+      bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: failover-clientId
   failover-kafka2:
     docker:
       hostname: failover-kafka2
@@ -60,7 +65,7 @@ services:
         KAFKA_BROKER_ID: 2
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29093,INTERNAL://:9093
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka2:9093,EXTERNAL_SAME_HOST://localhost:29093
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29093,INTERNAL://failover-kafka2:9093
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -74,6 +79,11 @@ services:
         test: nc -zv failover-kafka2 9093 || exit 1
         interval: 5s
         retries: 25
+    properties:
+      bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: failover-clientId
   failover-kafka3:
     docker:
       hostname: failover-kafka3
@@ -85,7 +95,7 @@ services:
         KAFKA_BROKER_ID: 3
         KAFKA_ZOOKEEPER_CONNECT: zookeeper:2801/backup
         KAFKA_LISTENERS: EXTERNAL_SAME_HOST://:29094,INTERNAL://:9094
-        KAFKA_ADVERTISED_LISTENERS: INTERNAL://failover-kafka1:9094,EXTERNAL_SAME_HOST://localhost:29094
+        KAFKA_ADVERTISED_LISTENERS: EXTERNAL_SAME_HOST://localhost:29094,INTERNAL://failover-kafka3:9094
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL_SAME_HOST:PLAINTEXT
         KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -94,6 +104,39 @@ services:
         KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
       depends_on:
         zookeeper:
+          condition: service_healthy
+      healthcheck:
+        test: nc -zv failover-kafka3 9094 || exit 1
+        interval: 5s
+        retries: 25
+    properties:
+      bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
+      auto.offset.reset: earliest
+      enable.auto.commit: false
+      client.id: failover-clientId
+  mirror-maker:
+    docker:
+      image: confluentinc/cp-kafka:latest
+      container_name: mirror-maker
+      hostname: mirror-maker
+      volumes:
+        - type: bind
+          source: "../config"
+          target: /config
+          read_only: true
+      command: sleep infinity
+      depends_on:
+        kafka1:
+          condition: service_healthy
+        kafka2:
+          condition: service_healthy
+        kafka3:
+          condition: service_healthy
+        failover-kafka1:
+          condition: service_healthy
+        failover-kafka2:
+          condition: service_healthy
+        failover-kafka3:
           condition: service_healthy
       healthcheck:
         test: nc -zv failover-kafka3 9094 || exit 1
@@ -117,7 +160,8 @@ services:
       bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
-      client.id: clientId
+      client.id: gateway1-clientId
+
   gateway2:
     docker:
       image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
@@ -136,50 +180,112 @@ services:
       bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
-      client.id: clientId
-  mirror-maker:
-    docker:
-      image: confluentinc/cp-kafka:latest
-      container_name: mirror-maker
-      hostname: mirror-maker
-      volumes:
-        - type: bind
-          source: "../config"
-          target: /config
-          read_only: true
-      command: connect-mirror-maker /config/mm2.properties
-      depends_on:
-        kafka1:
-          condition: service_healthy
-        kafka2:
-          condition: service_healthy
-        kafka3:
-          condition: service_healthy
-        failover-kafka1:
-          condition: service_healthy
-        failover-kafka2:
-          condition: service_healthy
-        failover-kafka3:
-          condition: service_healthy
+      client.id: gateway2-clientId
 
 actions:
 
+  - type: BASH
+    description: Start mirror maker
+    script: |
+      docker compose exec mirror-maker connect-mirror-maker -daemon /config/mm2.properties
+
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway1
+    names:
+      - teamA
+
   - type: CREATE_TOPICS
-    kafka: gateway1
+    kafka: teamA
     topics:
       - name: users
         replicationFactor: 1
         partitions: 1
 
-  - type: BASH
+  - type: PRODUCE
     kafka: teamA
-    showOutput: true
-    script: |
-      sleep 10
+    topic: users
+    messages:
+      - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
+      - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
 
   - type: LIST_TOPICS
+    kafka: kafka1
+    assertExists:
+      - _acls
+      - _auditLogs
+      - _consumerGroupSubscriptionBackingTopic
+      - _interceptorConfigs
+      - _license
+      - _offsetStore
+      - _schemas
+      - _topicMappings
+      - _topicRegistry
+      - teamAusers
+
+
+  - type: LIST_TOPICS
+    description: assert mirror maker is doing its job
     kafka: failover-kafka1
     assertExists:
-      - users
+      - _acls
+      - _auditLogs
+      - _consumerGroupSubscriptionBackingTopic
+      - _interceptorConfigs
+      - _license
+      - _offsetStore
+      - _schemas
+      - _topicMappings
+      - _topicRegistry
+      - teamAusers
 
-  - type: SUCCESS
+
+  - type: BASH
+    showOutput: true
+    kafka: failover-kafka1
+    script: |
+      docker compose exec failover-kafka1 kafka-topics --bootstrap-server localhost:9092 --list
+      docker compose exec failover-kafka1 kafka-console-consumer --bootstrap-server localhost:9092 --topic _topicMappings --from-beginning --max-messages 1
+
+  - type: BASH
+    showOutput: true
+    script: |
+      curl \
+        --silent \
+        --user "admin:conduktor" \
+        --request POST 'http://localhost:8888/admin/pclusters/v1/pcluster/main/switch?to=failover'
+
+
+
+  - type: PRODUCE
+    kafka: teamA
+    topic: users
+    messages:
+      - value: '{"name":"thibaut","username":"thibaut@conduktor.io","password":"youpi","visa":"#812SSS","address":"Les ifs"}'
+
+  - type: CONSUME
+    kafka: teamA
+    properties:
+      group.id: users
+      auto.offset.reset: earliest
+    topics:
+      - users
+    assertSize: 3
+    assertions:
+      - description: confirm producer after switch is readable
+        value:
+          operator: containsIgnoreCase
+          expected: 'thibaut'
+
+  - type: CONSUME
+    kafka: failover-kafka1
+    properties:
+      group.id: users
+      auto.offset.reset: earliest
+    topics:
+      - teamAusers
+    assertions:
+      - description: confirm producer after switch is written in failover kafka
+        value:
+          operator: containsIgnoringCase
+          expected: 'thibaut'
