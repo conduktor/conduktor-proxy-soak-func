@@ -1,0 +1,7 @@
+config:
+  main:
+    bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+
+  failover:
+    bootstrap.servers: localhost:39092,localhost:39093,localhost:39094
+    gateway.roles: failover

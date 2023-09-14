@@ -120,9 +120,6 @@ services:
     image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
-      KAFKA_SASL_MECHANISM: PLAIN
-      KAFKA_SECURITY_PROTOCOL: SASL_PLAINTEXT
-      KAFKA_SASL_JAAS_CONFIG: org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret";
     depends_on:
       kafka1:
         condition: service_healthy
@@ -162,6 +159,17 @@ services:
       test: curl localhost:8888/health
       interval: 5s
       retries: 25
+
+  cli-kcat:
+    hostname: cli-kcat
+    container_name: cli-kcat
+    image: confluentinc/cp-kcat:latest
+    entrypoint: "sleep 100d"
+    volumes:
+      - type: bind
+        source: "."
+        target: /clientConfig
+        read_only: true
 
   ksqldb-server:
     image: confluentinc/ksqldb-server:0.29.0

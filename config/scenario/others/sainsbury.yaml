@@ -26,11 +26,11 @@ services:
       client.id: clientId
   gateway1:
     docker:
-      image: conduktor/conduktor-gateway:2.1.2
+      image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
-        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_CLUSTER_ID: private
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
@@ -39,41 +39,17 @@ services:
       client.id: clientId
   gateway2:
     docker:
-      image: conduktor/conduktor-gateway:2.1.2
+      image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
-        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_CLUSTER_ID: private
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
       auto.offset.reset: earliest
       enable.auto.commit: false
       client.id: clientId
-  gateway-public:
-    docker:
-      hostname: gateway-public
-      container_name: gateway-public
-      image: conduktor/conduktor-gateway:2.1.2
-      environment:
-        GATEWAY_START_PORT: 17969
-        GATEWAY_CLUSTER_ID: public
-        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
-      depends_on:
-        kafka1:
-          condition: service_healthy
-        kafka2:
-          condition: service_healthy
-        kafka3:
-          condition: service_healthy
-      ports:
-        - "17969:17969"
-        - "17970:17970"
-        - "17971:17971"
-      healthcheck:
-        test: curl localhost:8888/health
-        interval: 5s
-        retries: 25
 actions:
 
   - type: CREATE_VIRTUAL_CLUSTERS
@@ -242,5 +218,76 @@ actions:
       - "nb topics = 0"
       - "nb topics mappings = 1"
       - "nb physical topics = 11"
+
+  - type: BASH
+    description: create topic and initialize with simple data and fetch it
+    kafka: teamA
+    showOutput: true
+    script: |
+      kafka-topics \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --command-config teamA.properties \
+        --config cleanup.policy=compact \
+        --create --if-not-exists \
+        --topic unlimited-cache
+
+      echo '{"msg": "hello world"}' \
+        | kafka-console-producer \
+          --bootstrap-server ${BOOTSTRAP_SERVERS} \
+          --producer.config teamA.properties \
+          --topic unlimited-cache
+
+      kafka-console-consumer \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --consumer.config teamA.properties \
+        --topic unlimited-cache \
+        --from-beginning \
+        --max-messages 1 | jq
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway1
+    interceptors:
+      teamA:
+        fetch: {
+          "pluginClass": "io.conduktor.gateway.interceptor.CacheInterceptorPlugin",
+          "priority": 100,
+          "config": {
+            "topic": ".*"
+          }
+        }
+
+  - type: BASH
+    description: read from topic and it works
+    kafka: teamA
+    showOutput: true
+    script: |
+      kafka-console-consumer \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --consumer.config teamA.properties \
+        --topic unlimited-cache \
+        --from-beginning \
+        --max-messages 1 | jq
+
+  - type: BASH
+    description: add transactional data
+    kafka: teamA
+    showOutput: true
+    script: |
+        kcat -P -b ${BOOTSTRAP_SERVERS} \
+          -f /clientConfig/teamA.properties \
+          -t unlimited-cache \
+          -X transactional.id=id
+
+  - type: BASH
+    description: read from topic and it fails
+    kafka: teamA
+    showOutput: true
+    script: |
+      kafka-console-consumer \
+        --bootstrap-server ${BOOTSTRAP_SERVERS} \
+        --consumer.config teamA.properties \
+        --topic unlimited-cache \
+        --from-beginning \
+        --max-messages 1 | jq
 
   - type: SUCCESS
