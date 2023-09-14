@@ -202,7 +202,7 @@ public class ScenarioTest {
 
                     savePropertiesToFile(new File(executionFolder + "/" + name + ".properties"), properties);
 
-                    System.out.println(String.format("""
+                    if (false) System.out.println(String.format("""
                            curl \\
                                --silent \\
                                --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
@@ -225,7 +225,7 @@ public class ScenarioTest {
                                 Assertions.fail("Expected an error");
                             }
 
-                            System.out.println(String.format("""
+                            if (false) System.out.println(String.format("""
                                     kafka-topics \\
                                         --bootstrap-server %s \\
                                         --command-config /clientConfig/teamA-sa.properties \\
@@ -249,7 +249,7 @@ public class ScenarioTest {
                 var action = ((Scenario.ListTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     Set<String> topics = adminClient.listTopics().names().get();
-                    System.out.println(String.format("""
+                    if (false) System.out.println(String.format("""
                                     kafka-topics \\
                                         --bootstrap-server %s \\
                                         --command-config /clientConfig/teamA-sa.properties \\
@@ -300,7 +300,7 @@ public class ScenarioTest {
                         produce(action.getTopic(), action.getMessages(), producer);
 
                         for (Scenario.Message message : action.getMessages()) {
-                            System.out.println(String.format("""
+                            if (false) System.out.println(String.format("""
                                 echo '%s' | \\
                                    kafka-console-producer  \\
                                        --bootstrap-server %s \\
@@ -341,7 +341,7 @@ public class ScenarioTest {
                     assertRecords(records, action.getAssertions());
                 }
                 for (String topic : action.getTopics()) {
-                    System.out.println(String.format("""
+                    if (false) System.out.println(String.format("""
                                 echo '%s' | \\
                                    kafka-console-producer  \\
                                        --bootstrap-server %s \\
@@ -375,7 +375,7 @@ public class ScenarioTest {
                             .extracting(PluginResponse::getName)
                             .contains(assertion);
                 }
-                System.out.println(String.format("""
+                if (false) System.out.println(String.format("""
                         curl \\
                             -u "admin:conduktor" \\
                             --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
@@ -404,7 +404,7 @@ public class ScenarioTest {
                             .containsAll(action.assertValues);
                 }
 
-                System.out.println(String.format("""
+                if (false) System.out.println(String.format("""
                         cat clientConfig/%s-sa.properties
                         """, "teamA"));
 

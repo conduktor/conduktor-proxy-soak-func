@@ -278,12 +278,27 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
+    kafka: kafka1
+    properties:
+      group.id: kafka1-users
+      auto.offset.reset: earliest
+    topics:
+      - teamAusers
+    assertSize: 2
+    assertions:
+      - description: Thibaut should be only in failover kafka
+        value:
+          operator: doesNotContainIgnoringCase
+          expected: 'thibaut'
+
+  - type: CONSUME
     kafka: failover-kafka1
     properties:
       group.id: users
       auto.offset.reset: earliest
     topics:
       - teamAusers
+    assertSize: 3
     assertions:
       - description: confirm producer after switch is written in failover kafka
         value:
