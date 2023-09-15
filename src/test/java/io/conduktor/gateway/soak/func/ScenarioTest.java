@@ -342,13 +342,13 @@ public class ScenarioTest {
                                 .map(message ->
                                         String.format("""
                                                         echo '%s' | \\
-                                                           kafka-console-producer  \\
-                                                               --bootstrap-server %s%s \\
-                                                               --topic %s
+                                                            kafka-console-producer  \\
+                                                                --bootstrap-server %s%s \\
+                                                                --topic %s
                                                         """,
                                                 message.getValue(),
                                                 clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                                                action.getKafkaConfig() == null ? "" : " \\\n       --producer.config " + action.getKafkaConfig(),
+                                                action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
                         code(action, id, command);
@@ -389,7 +389,7 @@ public class ScenarioTest {
                     } else {
                         timeout = TimeUnit.MINUTES.toMillis(1);
                     }
-                    while (recordCount < maxRecords || recordCount > action.getAssertSize()) {
+                    while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
                         if (!(System.currentTimeMillis() < startTime + timeout)) break;
                         var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
                         recordCount += consumedRecords.count();
@@ -414,8 +414,8 @@ public class ScenarioTest {
                                     --topic %s%s%s
                                 """,
                         clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                        properties.getProperty("group.id"),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
+                        properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + action.getMaxMessages()

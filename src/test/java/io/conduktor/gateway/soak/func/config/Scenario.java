@@ -152,7 +152,7 @@ public class Scenario {
         private Long timeout;
         private Integer maxMessages;
         private Integer assertSize;
-        private boolean showRecords = true;
+        private boolean showRecords = false;
         private String topic;
     }
 

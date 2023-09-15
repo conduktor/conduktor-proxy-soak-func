@@ -258,9 +258,10 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
+    maxMessages: 3
     assertSize: 3
     assertions:
-      - description: confirm producer after switch is readable
+      - description: Confirm producer after switch is readable
         value:
           operator: containsIgnoreCase
           expected: 'thibaut'
@@ -280,8 +281,9 @@ actions:
     description: Verify thibaut is in failover
     kafka: failover-kafka1
     topic: teamAusers
+    maxMessages: 3
     assertions:
-      - description: confirm producer after switch is written in failover kafka
+      - description: Confirm producer after switch is written in failover kafka
         value:
           operator: containsIgnoreCase
           expected: 'thibaut'
