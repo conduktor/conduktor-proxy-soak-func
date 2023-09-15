@@ -8,7 +8,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 @Data
 @NoArgsConstructor
@@ -66,10 +65,11 @@ public class Scenario {
     @AllArgsConstructor
     public static class Action {
         private ActionType type;
-        private String description = "";
+        private String title = "";
+        private String markdown = "";
 
         public String simpleMessage() {
-            return type + " " + description;
+            return type + " " + title;
         }
     }
 

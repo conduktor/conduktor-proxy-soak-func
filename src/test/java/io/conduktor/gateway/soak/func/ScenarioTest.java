@@ -14,6 +14,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -50,6 +51,8 @@ import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
 import static io.restassured.RestAssured.given;
+import static java.lang.String.format;
+import static java.nio.file.Files.createDirectory;
 import static org.apache.commons.io.FileUtils.writeStringToFile;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.http.HttpStatus.SC_CREATED;
@@ -69,7 +72,7 @@ public class ScenarioTest {
     public static Path createRandomFolder(Boolean deleteOnExit) {
         try {
             Path path = Paths.get(System.getProperty("user.dir"), UUID.randomUUID().toString());
-            Files.createDirectory(path);
+            createDirectory(path);
             if (deleteOnExit) {
                 path.toFile().deleteOnExit();
             }
@@ -125,6 +128,9 @@ public class ScenarioTest {
     public void testScenario(Scenario scenario) throws Exception {
         log.info("Start to test: {}", scenario.getTitle());
         var actions = scenario.getActions();
+        createDirectory(Path.of(executionFolder.getFileName() + "/asciinema"));
+        createDirectory(Path.of(executionFolder.getFileName() + "/images"));
+        createDirectory(Path.of(executionFolder.getFileName() + "/steps"));
 
         var composeFileContent = getUpdatedDockerCompose(scenario);
         buildAndrunDockerCompose(composeFileContent);
@@ -139,7 +145,7 @@ public class ScenarioTest {
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
-                step(clusters, clientFactory, String.format("%02d", ++id), _action);
+                step(clusters, clientFactory, format("%02d", ++id), _action);
             }
         }
     }
@@ -177,6 +183,17 @@ public class ScenarioTest {
 
     private void step(Map<String, Properties> clusters, ClientFactory clientFactory, String id, Scenario.Action _action) throws Exception {
         log.info("[" + id + "] Executing " + _action.simpleMessage());
+
+
+        appendTo("Readme.md",
+                format("""
+                                # Step %s - %s
+                                %s
+                                                                
+                                """,
+                        id,
+                        trimToEmpty(_action.getTitle()),
+                        trimToEmpty(_action.getMarkdown())));
 
         switch (_action.getType()) {
             case STEP -> {
@@ -341,9 +358,9 @@ public class ScenarioTest {
                         String command = action.getMessages()
                                 .stream()
                                 .map(message ->
-                                        String.format("""
+                                        format("""
                                                         echo '%s' | \\
-                                                            kafka-console-producer  \\
+                                                            kafka-console-producer \\
                                                                 --bootstrap-server %s%s \\
                                                                 --topic %s
                                                         """,
@@ -613,7 +630,7 @@ public class ScenarioTest {
     @NotNull
     private String addShHeader(String id, Scenario.ShAction action) {
         return action.getScript().startsWith("#!/bin/sh") ? "" : "#!/bin/sh\n"
-                + "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription()) + "'\n";
+                + "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle()) + "'\n";
     }
 
     private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
@@ -826,27 +843,61 @@ public class ScenarioTest {
         }
     }
 
-    private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) {
-        String code = String.format(format, args);
+    private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
+        String stepTitle = "Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle());
 
-        try {
-            Path folder = executionFolder.getFileName();
-            String stepTitle = "Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription());
-            writeStringToFile(new File(folder + "/run.sh"), "echo '" + stepTitle + "'\n" + code + "\n", Charset.defaultCharset(), true);
-            String step = "step-" + id + "-" + action.getType();
-            writeStringToFile(new File(folder + "/" + step + ".sh"), code, Charset.defaultCharset(), true);
+        appendTo("run.sh", "echo '" + stepTitle + "'\n" + format(format, args) + "\n");
+        String step = "step-" + id + "-" + action.getType();
+        appendTo("steps/" + step + ".sh", format(format, args));
 
-            writeStringToFile(new File(folder + "/record.sh"), String.format("""
-                    asciinema rec \\
-                          --title "%s %s" \\
-                          --idle-time-limit 2 \\
-                          --cols 140 --rows 20 \\
-                          --command "sh -x %s.sh" \\
-                          %s.asciinema
-                    agg --theme "asciinema" %s.asciinema %s.gif
-                    """, scenario.getTitle(), stepTitle, step, step, step, step), Charset.defaultCharset(), true);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        // npm install -g svg-term-cli ?
+        appendTo("record.sh",
+                format("""
+                                asciinema rec \\
+                                      --title "%s %s" \\
+                                      --idle-time-limit 2 \\
+                                      --cols 140 --rows 20 \\
+                                      --command "sh -x steps/%s.sh" \\
+                                      asciinema/%s.asciinema
+                                agg \
+                                    --theme "asciinema" \\
+                                    --last-frame-duration 1 \\
+                                    --no-loop \\
+                                    asciinema/%s.asciinema images/%s.gif
+                                """,
+                        scenario.getTitle(),
+                        stepTitle,
+                        step,
+                        step,
+                        step,
+                        step));
+
+
+        appendTo("/Readme.md",
+                format("""
+                                ```sh
+                                %s
+                                ```
+                                                        
+                                <details>
+                                  <summary>Results</summary>
+                                  ![%s](images/%s.gif)
+                                  results
+                                </details>
+                                                    
+                                """,
+                        format(format, args),
+                        trimToEmpty(action.getTitle()),
+                        step,
+                        trimToEmpty(action.getTitle())
+                ));
+    }
+
+    private static void appendTo(String filename, String code) throws IOException {
+        writeStringToFile(
+                new File(executionFolder.getFileName() + "/" + filename),
+                code,
+                Charset.defaultCharset(),
+                true);
     }
 }

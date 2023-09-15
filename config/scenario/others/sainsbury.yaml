@@ -71,7 +71,7 @@ actions:
           }'
 
   - type: SH
-    description: create 100 topics in //
+    title: Create 100 topics in //
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -86,7 +86,7 @@ actions:
           --create --topic _
 
   - type: SH
-    description: assert 100 virtual topics
+    title: Assert 100 virtual topics
     kafka: kafka1
     showOutput: true
     script: |
@@ -111,7 +111,7 @@ actions:
       - "nb physical topics = 11"
 
   - type: SH
-    description: send data to the 100 topics in //
+    title: Send data to the 100 topics in //
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -125,7 +125,7 @@ actions:
           --topic _"
 
   - type: SH
-    description: assert 100 elements in
+    title: Assert 100 elements in
     kafka: kafka1
     showOutput: true
     script: |
@@ -138,7 +138,7 @@ actions:
       - "Processed a total of 100 messages"
 
   - type: SH
-    description: consume data to the topics using groups in //
+    title: Consume data to the topics using groups in //
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -155,7 +155,7 @@ actions:
           --max-messages 1"
 
   - type: SH
-    description: assert number of consumer groups
+    title: Assert number of consumer groups
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -168,7 +168,7 @@ actions:
       - "number of consumer groups  100"
 
   - type: SH
-    description: describe each consumer groups
+    title: Describe each consumer groups
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -185,7 +185,7 @@ actions:
       - "Error:"
 
   - type: SH
-    description: delete topics  in //
+    title: Delete topics  in //
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -201,7 +201,7 @@ actions:
       - "Error while executing topic command"
 
   - type: SH
-    description: assert 0 topic
+    title: Assert 0 topic
     kafka: kafka1
     showOutput: true
     script: |
@@ -226,7 +226,7 @@ actions:
       - "nb physical topics = 11"
 
   - type: SH
-    description: create topic and initialize with simple data and fetch it
+    title: Create topic and initialize with simple data and fetch it
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -264,7 +264,7 @@ actions:
         }
 
   - type: SH
-    description: read from topic and it works
+    title: Read from topic and it works
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -277,7 +277,7 @@ actions:
         --max-messages 1 | jq
 
   - type: SH
-    description: add transactional data
+    title: Add transactional data
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -288,7 +288,7 @@ actions:
           -X transactional.id=id
 
   - type: SH
-    description: read from topic and it fails
+    title: Read from topic and it fails
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true

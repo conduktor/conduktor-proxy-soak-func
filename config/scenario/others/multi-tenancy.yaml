@@ -240,5 +240,5 @@ actions:
 
 
   - type: SUCCESS
-    description: Done
+    title: Done
 

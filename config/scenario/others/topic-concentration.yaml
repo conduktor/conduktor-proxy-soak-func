@@ -251,5 +251,5 @@ actions:
       docker compose --profile ksqldb up -d --wait
 
   - type: SUCCESS
-    description: Done
+    title: Done
 

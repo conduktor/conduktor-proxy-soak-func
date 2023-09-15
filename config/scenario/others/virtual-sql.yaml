@@ -76,11 +76,11 @@ actions:
     topic: cars
     assertSize: 2
     assertions:
-      - description: confirm Sport
+      - description: Confirm Sport
         value:
           operator: containsIgnoreCase
           expected: 'Sports'
-      - description: confirm SUV
+      - description: Confirm SUV
         value:
           operator: containsIgnoreCase
           expected: 'SUV'
@@ -118,11 +118,11 @@ actions:
     topic: red-cars
     assertSize: 1
     assertions:
-      - description: confirm Sport is not there because it's not red
+      - description: Confirm Sport is not there because it's not red
         value:
           operator: doesNotContainIgnoringCase
           expected: 'Sports'
-      - description: confirm SUV is there because it's red
+      - description: Confirm SUV is there because it's red
         value:
           operator: containsIgnoreCase
           expected: 'SUV'

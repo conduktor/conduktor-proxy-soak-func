@@ -163,19 +163,19 @@ services:
 actions:
 
   - type: SH
-    description: Start mirror maker
+    title: Start mirror maker
     script: |
       docker compose exec mirror-maker \
         connect-mirror-maker -daemon \
           /config/mm2.properties
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    description: Create teamA virtual cluster
+    title: Create teamA virtual cluster
     gateway: gateway1
     name: teamA
 
   - type: CREATE_TOPICS
-    description: Create topic users
+    title: Create topic users
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -184,7 +184,7 @@ actions:
         partitions: 1
 
   - type: PRODUCE
-    description: Send tom and florent into topic users
+    title: Send tom and florent into topic users
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -207,19 +207,19 @@ actions:
       - teamAusers
 
   - type: CONSUME
-    description: Wait for mirror maker to do its job on gateway internal topic
+    title: Wait for mirror maker to do its job on gateway internal topic
     kafka: failover-kafka1
     maxMessages: 1
     topic: _topicMappings
 
   - type: CONSUME
-    description: Wait for mirror maker to do its job on user topics
+    title: Wait for mirror maker to do its job on user topics
     kafka: failover-kafka1
     maxMessages: 1
     topic: teamAusers
 
   - type: LIST_TOPICS
-    description: Assert mirror maker did its job
+    title: Assert mirror maker did its job
     kafka: failover-kafka1
     assertExists:
       - _acls
@@ -234,19 +234,19 @@ actions:
       - teamAusers
 
   - type: FAILOVER
-    description: Call the failover switch api on gateway1
+    title: Call the failover switch api on gateway1
     gateway: gateway1
     from: main
     to: failover
 
   - type: FAILOVER
-    description: Call the failover switch api on gateway2
+    title: Call the failover switch api on gateway2
     gateway: gateway2
     from: main
     to: failover
 
   - type: PRODUCE
-    description: Produce thibault into users, it should hit only failover-kafka
+    title: Produce thibault into users, it should hit only failover-kafka
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -254,7 +254,7 @@ actions:
       - value: '{"name":"thibaut","username":"thibaut@conduktor.io","password":"youpi","visa":"#812SSS","address":"Les ifs"}'
 
   - type: CONSUME
-    description: Verify we can read florent, and tom (via mirror maker) and thibault (via switch)
+    title: Verify we can read florent, and tom (via mirror maker) and thibault (via switch)
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -267,7 +267,7 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
-    description: Verify thibaut is not in main kafka
+    title: Verify thibaut is not in main kafka
     kafka: kafka1
     topic: teamAusers
     assertSize: 2
@@ -278,7 +278,7 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
-    description: Verify thibaut is in failover
+    title: Verify thibaut is in failover
     kafka: failover-kafka1
     topic: teamAusers
     maxMessages: 3

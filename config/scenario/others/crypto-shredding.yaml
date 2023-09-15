@@ -219,7 +219,7 @@ actions:
           expected: '#888999XZ'
 
   - type: SH
-    description: Listing created keys in Vault
+    title: Listing created keys in Vault
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -230,7 +230,7 @@ actions:
         --header "X-Vault-Token: vault-plaintext-root-token" | jq -r ".data.keys"
 
   - type: SH
-    description: Remove florent related keys
+    title: Remove florent related keys
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -271,5 +271,5 @@ actions:
           expected: '#888999XZ'
 
   - type: SUCCESS
-    description: Done
+    title: Done
 
