@@ -14,7 +14,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -38,7 +37,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -69,32 +67,19 @@ public class ScenarioTest {
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
     private static List<Arguments> scenarios;
 
-    public static Path createRandomFolder(Boolean deleteOnExit) {
-        try {
-            Path path = Paths.get(System.getProperty("user.dir"), UUID.randomUUID().toString());
-            createDirectory(path);
-            if (deleteOnExit) {
-                path.toFile().deleteOnExit();
-            }
-            return path;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private static boolean deleteFolderOnExist = false;
     private static boolean cleanupAfterTest = false;
 
-    private static Path executionFolder = createRandomFolder(deleteFolderOnExist);
+    private static Path executionFolder;
 
     @BeforeAll
     public void setUp() throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.directory(executionFolder.toFile());
         processBuilder.command("bash", "-c", "docker rm -f $(docker ps -aq)");
         processBuilder.start().waitFor();
 
         loadScenarios();
+
     }
 
     private static void loadScenarios() throws IOException {
@@ -126,14 +111,38 @@ public class ScenarioTest {
     @ParameterizedTest
     @MethodSource("sourceForScenario")
     public void testScenario(Scenario scenario) throws Exception {
+        executionFolder = createDirectory(Paths.get(System.getProperty("user.dir"), UUID.randomUUID().toString()));
+        log.info("Execution folder {}", executionFolder);
+
         log.info("Start to test: {}", scenario.getTitle());
         var actions = scenario.getActions();
         createDirectory(Path.of(executionFolder.getFileName() + "/asciinema"));
         createDirectory(Path.of(executionFolder.getFileName() + "/images"));
         createDirectory(Path.of(executionFolder.getFileName() + "/steps"));
 
-        var composeFileContent = getUpdatedDockerCompose(scenario);
-        buildAndrunDockerCompose(composeFileContent);
+        appendTo(
+                "docker-compose.yaml",
+                getUpdatedDockerCompose(scenario));
+        appendTo("record.sh", """
+                echo 'function execute() {
+                    file=$1
+                    chars=$(cat $file| wc -c)
+                    if [ "$chars" -lt 100 ] ; then
+                        cat $file | pv -qL 50
+                    elif [ "$chars" -lt 250 ] ; then
+                        cat $file | pv -qL 100
+                    elif [ "$chars" -lt 500 ] ; then
+                        cat $file | pv -qL 200
+                    else
+                        cat $file | pv -qL 400
+                    fi
+                    . $file
+                }
+                                
+                execute $1
+                ' > ./execute.sh
+                chmod +x execute.sh
+                """);
         runScenarioSteps(scenario, actions);
     }
 
@@ -148,17 +157,6 @@ public class ScenarioTest {
                 step(clusters, clientFactory, format("%02d", ++id), _action);
             }
         }
-    }
-
-    private void buildAndrunDockerCompose(String composeFileContent) throws IOException, InterruptedException {
-        writeStringToFile(new File(executionFolder.getFileName() + "/docker-compose.yaml"), composeFileContent, Charset.defaultCharset());
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.directory(executionFolder.toFile());
-        processBuilder.command("docker", "compose", "up", "--wait", "--detach");
-        processBuilder.redirectErrorStream(true);
-        Process process = processBuilder.start();
-        System.out.println("Running Docker Compose in " + executionFolder);
-        process.waitFor();
     }
 
     @AfterAll
@@ -293,7 +291,7 @@ public class ScenarioTest {
                     Set<String> topics = adminClient.listTopics().names().get();
                     code(scenario, action, id, """
                                     kafka-topics \\
-                                        --bootstrap-server %s%s\\
+                                        --bootstrap-server %s%s \\
                                         --list
                                     """,
                             clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
@@ -330,7 +328,6 @@ public class ScenarioTest {
                                 clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
                                 action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
                                 topic);
-
                     }
                     for (DescribeTopicsActionAssertions assertion : action.getAssertions()) {
                         assertThat(topics)
@@ -440,14 +437,15 @@ public class ScenarioTest {
                                     --bootstrap-server %s%s \\
                                     --group %s \\
                                     --topic %s%s \\
-                                    %s
+                                    %s%s
                                 """,
                         clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
-                        (action.getMaxMessages() == null && action.getAssertSize() == null) ? "--timeout-ms " + timeout : "--max-messages " + maxRecords
+                        action.getMaxMessages() == null ? "" : "--max-messages " + maxRecords,
+                        action.getAssertSize() == null ? "" : "--timeout-ms " + timeout
                 );
             }
             case FAILOVER -> {
@@ -546,6 +544,47 @@ public class ScenarioTest {
                                 """,
                         gateway,
                         action.vcluster);
+            }
+            case DOCKER -> {
+                var action = ((Scenario.DockerAction) _action);
+
+                ProcessBuilder processBuilder = new ProcessBuilder();
+                processBuilder.directory(executionFolder.toFile());
+                processBuilder.command("sh", "-c", action.getCommand());
+                processBuilder.redirectErrorStream(true);
+                Process process = processBuilder.start();
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String ret = "";
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        ret = ret + line + "\n";
+                    }
+                    if (!action.isDaemon()) {
+                        int exitCode = process.waitFor();
+
+                        if (action.showOutput) {
+                            log.info(ret);
+                        }
+                        if (action.assertExitCode != null) {
+                            assertThat(exitCode)
+                                    .isEqualTo(action.assertExitCode);
+                        }
+                        if (!action.assertOutputContains.isEmpty()) {
+                            assertThat(ret)
+                                    .contains(action.assertOutputContains);
+                        }
+                        if (!action.assertOutputDoesNotContain.isEmpty()) {
+                            assertThat(ret)
+                                    .doesNotContain(action.assertOutputDoesNotContain);
+                        }
+                    }
+                }
+
+                code(scenario, action, id, """
+                                %s
+                                """,
+                        action.getCommand());
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
@@ -848,23 +887,31 @@ public class ScenarioTest {
 
         appendTo("run.sh", "echo '" + stepTitle + "'\n" + format(format, args) + "\n");
         String step = "step-" + id + "-" + action.getType();
-        appendTo("steps/" + step + ".sh", format(format, args));
+        appendTo(step + ".sh", format(format, args));
 
-        // npm install -g svg-term-cli ?
+        // svg-term ?
         appendTo("record.sh",
                 format("""
+                                echo "%s - %s"
                                 asciinema rec \\
-                                      --title "%s %s" \\
-                                      --idle-time-limit 2 \\
-                                      --cols 140 --rows 20 \\
-                                      --command "sh -x steps/%s.sh" \\
-                                      asciinema/%s.asciinema
-                                agg \
+                                    --title "%s - %s" \\
+                                    --idle-time-limit 2 \\
+                                    --cols 140 --rows 20 \\
+                                    --command "sh execute.sh %s.sh" \\
+                                    asciinema/%s.asciinema
+                                svg-term \\
+                                    --in asciinema/%s.asciinema \\
+                                    --out asciinema/%s.svg \\
+                                    --window true
+                                agg \\
                                     --theme "asciinema" \\
                                     --last-frame-duration 1 \\
                                     --no-loop \\
-                                    asciinema/%s.asciinema images/%s.gif
+                                    asciinema/%s.asciinema \\
+                                    images/%s.gif
                                 """,
+                        scenario.getTitle(),
+                        stepTitle,
                         scenario.getTitle(),
                         stepTitle,
                         step,
@@ -876,13 +923,13 @@ public class ScenarioTest {
         appendTo("/Readme.md",
                 format("""
                                 ```sh
-                                %s
-                                ```
+                                %s```
                                                         
                                 <details>
                                   <summary>Results</summary>
+                                  
                                   ![%s](images/%s.gif)
-                                  results
+                                  
                                 </details>
                                                     
                                 """,

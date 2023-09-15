@@ -58,6 +58,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
             @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES"),
+            @JsonSubTypes.Type(value = DockerAction.class, name = "DOCKER"),
             @JsonSubTypes.Type(value = FailoverAction.class, name = "FAILOVER")
     })
     @Data
@@ -78,6 +79,17 @@ public class Scenario {
         public String kafka;
         private String kafkaConfig;
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+    }
+
+    @Data
+    public static class DockerAction extends Action {
+        public String command;
+        public boolean showOutput = false;
+        public boolean daemon = false;
+        public Integer assertError;
+        public Integer assertExitCode;
+        public List<String> assertOutputContains = new ArrayList<>();
+        public List<String> assertOutputDoesNotContain = new ArrayList<>();
     }
 
 
@@ -292,6 +304,7 @@ public class Scenario {
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS,
         SH,
+        DOCKER,
         DESCRIBE_KAFKA_PROPERTIES,
         FAILOVER;
     }

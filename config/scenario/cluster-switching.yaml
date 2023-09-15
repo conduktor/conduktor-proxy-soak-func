@@ -162,12 +162,17 @@ services:
 
 actions:
 
-  - type: SH
+  - type: DOCKER
+    title: Start all
+    command: docker compose up -d --wait
+
+  - type: DOCKER
     title: Start mirror maker
-    script: |
-      docker compose exec mirror-maker \
-        connect-mirror-maker -daemon \
-          /config/mm2.properties
+    daemon: true
+    command: |
+      docker compose exec -ti mirror-maker \
+        connect-mirror-maker \
+          /config/mm2.properties &
 
   - type: CREATE_VIRTUAL_CLUSTERS
     title: Create teamA virtual cluster
