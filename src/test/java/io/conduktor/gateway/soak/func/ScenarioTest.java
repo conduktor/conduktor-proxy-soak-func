@@ -21,6 +21,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -206,7 +207,7 @@ public class ScenarioTest {
 
                 savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
-                code(action, id, """
+                code(scenario, action, id, """
                                 token=$(curl \\
                                     --silent \\
                                     --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
@@ -243,7 +244,7 @@ public class ScenarioTest {
                                 Assertions.fail("Expected an error");
                             }
 
-                            code(action, id, """
+                            code(scenario, action, id + "-" + topic.getName(), """
                                             kafka-topics \\
                                                 --bootstrap-server %s \\
                                                 --command-config %s \\
@@ -273,7 +274,7 @@ public class ScenarioTest {
                 var action = ((Scenario.ListTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     Set<String> topics = adminClient.listTopics().names().get();
-                    code(action, id, """
+                    code(scenario, action, id, """
                                     kafka-topics \\
                                         --bootstrap-server %s%s\\
                                         --list
@@ -303,7 +304,7 @@ public class ScenarioTest {
                             .allTopicNames()
                             .get();
                     for (String topic : action.topics) {
-                        code(action, id, """
+                        code(scenario, action, id, """
                                         kafka-topics \\
                                             --bootstrap-server %s%s \\
                                             --describe \\
@@ -351,7 +352,7 @@ public class ScenarioTest {
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
-                        code(action, id, command);
+                        code(scenario, action, id, command);
 
 
                         if (action.getAssertError() != null) {
@@ -375,27 +376,37 @@ public class ScenarioTest {
                 if (!properties.containsKey("auto.offset.reset")) {
                     properties.put("auto.offset.reset", "earliest");
                 }
+                final long timeout;
+                if (action.getTimeout() != null) {
+                    timeout = action.getTimeout();
+                } else if (action.getAssertSize() != null || action.getMaxMessages() == null) {
+                    timeout = TimeUnit.SECONDS.toMillis(5);
+                } else {
+                    timeout = TimeUnit.MINUTES.toMillis(1);
+                }
+
+                int maxRecords;
+                if (action.getMaxMessages() != null) {
+                    maxRecords = action.getMaxMessages();
+                } else if (action.getAssertSize() != null) {
+                    maxRecords = action.getAssertSize() + 1;
+                } else {
+                    maxRecords = 100;
+                }
+
                 try (var consumer = clientFactory.consumer(properties)) {
-                    int maxRecords = action.getMaxMessages() == null ? 100 : action.getMaxMessages();
                     consumer.subscribe(Arrays.asList(action.getTopic()));
                     int recordCount = 0;
                     long startTime = System.currentTimeMillis();
                     var records = new ArrayList<ConsumerRecord<String, String>>();
-                    final long timeout;
-                    if (action.getTimeout() != null) {
-                        timeout = action.getTimeout();
-                    } else if (action.getAssertSize() != null || action.getMaxMessages() == null) {
-                        timeout = TimeUnit.SECONDS.toMillis(5);
-                    } else {
-                        timeout = TimeUnit.MINUTES.toMillis(1);
-                    }
+
                     while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
                         if (!(System.currentTimeMillis() < startTime + timeout)) break;
                         var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
                         recordCount += consumedRecords.count();
                         for (var record : consumedRecords) {
                             if (action.isShowRecords()) {
-                                System.out.println("[p:"+ record.partition() + "/o:" + record.offset() + "] " + record.value());
+                                System.out.println("[p:" + record.partition() + "/o:" + record.offset() + "] " + record.value());
                             }
                             records.add(record);
                         }
@@ -407,18 +418,19 @@ public class ScenarioTest {
                     }
                     assertRecords(records, action.getAssertions());
                 }
-                code(action, id, """
-                                kafka-console-consumer  \\
+                code(scenario, action, id, """
+                                kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
                                     --group %s \\
-                                    --topic %s%s%s
+                                    --topic %s%s \\
+                                    %s
                                 """,
                         clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
-                        action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + action.getMaxMessages()
+                        (action.getMaxMessages() == null && action.getAssertSize() == null) ? "--timeout-ms " + timeout : "--max-messages " + maxRecords
                 );
             }
             case FAILOVER -> {
@@ -437,12 +449,12 @@ public class ScenarioTest {
                         .extract()
                         .response();
 
-                code(action, id, """
-                                      curl \\
-                                        --silent \\
-                                        --user "admin:conduktor" \\
-                                        --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s'
-                                      """,
+                code(scenario, action, id, """
+                                curl \\
+                                  --silent \\
+                                  --user "admin:conduktor" \\
+                                  --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s'
+                                """,
                         gateway,
                         action.from,
                         action.to);
@@ -461,7 +473,7 @@ public class ScenarioTest {
                         var pluginName = plugin.getKey();
                         var pluginBody = plugin.getValue();
 
-                        code(action, id, """
+                        code(scenario, action, id, """
                                         curl \\
                                             --silent \\
                                             --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
@@ -482,7 +494,7 @@ public class ScenarioTest {
                 String gateway = gatewayProperties.get("gateway.host");
                 for (String name : action.getNames()) {
                     removePlugin(gateway, action.vcluster, name);
-                    code(action, id, """
+                    code(scenario, action, id, """
                                     curl \\
                                         --silent \\
                                         --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
@@ -509,7 +521,7 @@ public class ScenarioTest {
                             .extracting(PluginResponse::getName)
                             .contains(assertion);
                 }
-                code(action, id, """
+                code(scenario, action, id, """
                                 curl \\
                                     -u "admin:conduktor" \\
                                     --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
@@ -520,7 +532,59 @@ public class ScenarioTest {
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
-                execute(id, action, getProperties(clusters, action));
+                Properties properties = getProperties(clusters, action);
+                String expandedScript = action.getScript();
+
+                var env = new HashMap<String, String>();
+                for (String key : properties.stringPropertyNames()) {
+                    String formattedKey = key.toUpperCase().replace(".", "_");
+                    String value = properties.getProperty(key);
+                    expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
+                    env.put(formattedKey, value);
+                }
+
+                if (action.getGateway() != null) {
+                    LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                    expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayProperties.get("gateway.host"));
+                }
+
+                code(scenario, action, id, expandedScript);
+                File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
+                writeStringToFile(scriptFile, addShHeader(id, action) + action.getScript(), Charset.defaultCharset());
+
+
+                ProcessBuilder processBuilder = new ProcessBuilder();
+                processBuilder.directory(executionFolder.toFile());
+                processBuilder.command("sh", scriptFile.getAbsolutePath());
+                processBuilder.redirectErrorStream(true);
+                processBuilder.environment().putAll(env);
+                Process process = processBuilder.start();
+
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String ret = "";
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        ret = ret + line + "\n";
+                    }
+                    int exitCode = process.waitFor();
+
+                    if (action.showOutput) {
+                        log.info(ret);
+                    }
+                    if (action.assertExitCode != null) {
+                        assertThat(exitCode)
+                                .isEqualTo(action.assertExitCode);
+                    }
+                    if (!action.assertOutputContains.isEmpty()) {
+                        assertThat(ret)
+                                .contains(action.assertOutputContains);
+                    }
+                    if (!action.assertOutputDoesNotContain.isEmpty()) {
+                        assertThat(ret)
+                                .doesNotContain(action.assertOutputDoesNotContain);
+                    }
+                }
             }
             case DESCRIBE_KAFKA_PROPERTIES -> {
                 var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
@@ -537,7 +601,7 @@ public class ScenarioTest {
                 }
 
 
-                code(action, id, """
+                code(scenario, action, id, """
                                 cat clientConfig/%s
                                 """,
                         action.getKafkaConfig());
@@ -546,64 +610,15 @@ public class ScenarioTest {
         }
     }
 
+    @NotNull
+    private String addShHeader(String id, Scenario.ShAction action) {
+        return action.getScript().startsWith("#!/bin/sh") ? "" : "#!/bin/sh\n"
+                + "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription()) + "'\n";
+    }
+
     private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
         String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(Collectors.joining("\n"));
         writeStringToFile(propertiesFile, content, Charset.defaultCharset());
-    }
-
-    private void execute(String id, Scenario.ShAction action, Properties properties) throws IOException, InterruptedException {
-        String expandedScript = action.getScript();
-
-        var env = new HashMap<String, String>();
-        for (String key : properties.stringPropertyNames()) {
-            String formattedKey = key.toUpperCase().replace(".", "_");
-            String value = properties.getProperty(key);
-            expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
-            env.put(formattedKey, value);
-        }
-
-        if (action.getGateway() != null) {
-            LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-            expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayProperties.get("gateway.host"));
-        }
-
-        code(action, id, expandedScript);
-        File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
-        writeStringToFile(scriptFile, (action.getScript().startsWith("#!/bin/sh") ? "" : "#!/bin/sh\n") + action.getScript(), Charset.defaultCharset());
-
-
-        ProcessBuilder processBuilder = new ProcessBuilder();
-        processBuilder.directory(executionFolder.toFile());
-        processBuilder.command("sh", scriptFile.getAbsolutePath());
-        processBuilder.redirectErrorStream(true);
-        processBuilder.environment().putAll(env);
-        Process process = processBuilder.start();
-
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String ret = "";
-            String line;
-            while ((line = reader.readLine()) != null) {
-                ret = ret + line + "\n";
-            }
-            int exitCode = process.waitFor();
-
-            if (action.showOutput) {
-                log.info(ret);
-            }
-            if (action.assertExitCode != null) {
-                assertThat(exitCode)
-                        .isEqualTo(action.assertExitCode);
-            }
-            if (!action.assertOutputContains.isEmpty()) {
-                assertThat(ret)
-                        .contains(action.assertOutputContains);
-            }
-            if (!action.assertOutputDoesNotContain.isEmpty()) {
-                assertThat(ret)
-                        .doesNotContain(action.assertOutputDoesNotContain);
-            }
-        }
     }
 
     private Properties getProperties(Map<String, Properties> virtualClusters, Scenario.KafkaAction action) {
@@ -811,13 +826,25 @@ public class ScenarioTest {
         }
     }
 
-    private static void code(Scenario.Action action, String id, String format, String... args) {
+    private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) {
         String code = String.format(format, args);
 
         try {
             Path folder = executionFolder.getFileName();
-            writeStringToFile(new File(folder + "/run.sh"), "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription()) + "'\n" + code + "\n", Charset.defaultCharset(), true);
-            writeStringToFile(new File(folder + "/step-" + id + "-" + action.getType() + ".sh"), code, Charset.defaultCharset(), true);
+            String stepTitle = "Step " + id + " " + action.getType() + " " + trimToEmpty(action.getDescription());
+            writeStringToFile(new File(folder + "/run.sh"), "echo '" + stepTitle + "'\n" + code + "\n", Charset.defaultCharset(), true);
+            String step = "step-" + id + "-" + action.getType();
+            writeStringToFile(new File(folder + "/" + step + ".sh"), code, Charset.defaultCharset(), true);
+
+            writeStringToFile(new File(folder + "/record.sh"), String.format("""
+                    asciinema rec \\
+                          --title "%s %s" \\
+                          --idle-time-limit 2 \\
+                          --cols 140 --rows 20 \\
+                          --command "sh -x %s.sh" \\
+                          %s.asciinema
+                    agg --theme "asciinema" %s.asciinema %s.gif
+                    """, scenario.getTitle(), stepTitle, step, step, step, step), Charset.defaultCharset(), true);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
