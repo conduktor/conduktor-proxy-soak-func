@@ -442,7 +442,7 @@ public class ScenarioTest {
                                         --silent \\
                                         --user "admin:conduktor" \\
                                         --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s'
-                                """,
+                                      """,
                         gateway,
                         action.from,
                         action.to);
