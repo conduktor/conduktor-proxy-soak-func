@@ -77,6 +77,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: customers-shredding
         replicationFactor: 1
@@ -84,6 +85,7 @@ actions:
 
   - type: LIST_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     assertExists:
       - customers-shredding
 
@@ -135,6 +137,7 @@ actions:
 
   - type: PRODUCE
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: customers-shredding
     messages:
       - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
@@ -142,11 +145,8 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: customer-encryption
-      auto.offset.reset: earliest
-    topics:
-      - customers-shredding
+    kafkaConfig: teamA-sa.properties
+    topic: customers-shredding
     assertSize: 2
     assertions:
       - description: Confirm password is encrypted for tom
@@ -197,11 +197,8 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: customer-decryption
-      auto.offset.reset: earliest
-    topics:
-      - customers-shredding
+    kafkaConfig: teamA-sa.properties
+    topic: customers-shredding
     assertSize: 2
     assertions:
       - description: Confirm password is decrypted for tom
@@ -224,6 +221,7 @@ actions:
   - type: SH
     description: Listing created keys in Vault
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       curl \
@@ -234,6 +232,7 @@ actions:
   - type: SH
     description: Remove florent related keys
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       curl \
@@ -250,11 +249,8 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: customer-decryption-after-schredding
-      auto.offset.reset: earliest
-    topics:
-      - customers-shredding
+    kafkaConfig: teamA-sa.properties
+    topic: customers-shredding
     assertSize: 2
     assertions:
       - description: Confirm password is decrypted for tom

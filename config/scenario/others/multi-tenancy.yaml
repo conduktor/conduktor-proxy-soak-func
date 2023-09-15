@@ -63,6 +63,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: london
+    kafkaConfig: london-sa.properties
     topics:
       - name: londonTopic
         replicationFactor: 1
@@ -70,6 +71,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: paris
+    kafkaConfig: paris-sa.properties
     topics:
       - name: parisTopic
         replicationFactor: 1
@@ -77,36 +79,40 @@ actions:
 
   - type: LIST_TOPICS
     kafka: london
+    kafkaConfig: london-sa.properties
     assertExists:
       - londonTopic
 
   - type: LIST_TOPICS
     kafka: paris
+    kafkaConfig: paris-sa.properties
     assertExists:
       - parisTopic
 
   - type: PRODUCE
     kafka: london
+    kafkaConfig: london-sa.properties
     topic: londonTopic
     messages:
       - value: 'testMessageLondon'
 
   - type: CONSUME
     kafka: london
-    topics:
-      - londonTopic
+    kafkaConfig: london-sa.properties
+    topic: londonTopic
     assertSize: 1
 
   - type: PRODUCE
     kafka: paris
+    kafkaConfig: paris-sa.properties
     topic: parisTopic
     messages:
       - value: 'testMessageParis'
 
   - type: CONSUME
     kafka: paris
-    topics:
-      - parisTopic
+    kafkaConfig: paris-sa.properties
+    topic: parisTopic
     assertSize: 1
 
   - type: CREATE_TOPICS
@@ -138,6 +144,7 @@ actions:
 
   - type: LIST_TOPICS
     kafka: london
+    kafkaConfig: london-sa.properties
     assertExists:
      - londonTopic
      - existingLondonTopic
@@ -171,6 +178,7 @@ actions:
 
   - type: LIST_TOPICS
     kafka: london
+    kafkaConfig: london-sa.properties
     assertExists:
       - londonTopic
       - existingLondonTopic
@@ -178,15 +186,21 @@ actions:
 
   - type: CONSUME
     kafka: london
-    topics:
-      - existingLondonTopic
-      - existingSharedTopic
-    assertSize: 2
+    kafkaConfig: london-sa.properties
+    topic: existingLondonTopic
+    assertSize: 1
     assertions:
       - description: Assert contains the original london topic message
         value:
           operator: contains
           expected: 'existingLondonMessage'
+
+  - type: CONSUME
+    kafka: london
+    kafkaConfig: london-sa.properties
+    topic: existingSharedTopic
+    assertSize: 1
+    assertions:
       - description: Assert contains the original shared topic message
         value:
           operator: containsIgnoreCase
@@ -208,14 +222,15 @@ actions:
 
   - type: LIST_TOPICS
     kafka: paris
+    kafkaConfig: paris-sa.properties
     assertExists:
       - parisTopic
       - existingSharedTopic
 
   - type: CONSUME
     kafka: paris
-    topics:
-      - existingSharedTopic
+    kafkaConfig: paris-sa.properties
+    topic: existingSharedTopic
     assertSize: 1
     assertions:
       - description: Assert contains the original shared topic message

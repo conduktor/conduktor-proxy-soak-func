@@ -3,22 +3,16 @@ package io.conduktor.gateway.soak.func.utils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.header.Header;
 import org.assertj.core.api.Assertions;
 import org.jetbrains.annotations.NotNull;
 
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -96,22 +90,6 @@ public class KafkaActionUtils {
             var recordMetadata = kafkaProducer.send(recordRequest).get();
             Assertions.assertThat(recordMetadata.hasOffset()).isTrue();
         }
-    }
-
-    public static <T> List<ConsumerRecord<String, T>> consume(KafkaConsumer<String, T> kafkaConsumer, List<String> topics, int maxRecords, int timeout) {
-        kafkaConsumer.subscribe(topics);
-        int recordCount = 0;
-        long startTime = System.currentTimeMillis();
-        var records = new ArrayList<ConsumerRecord<String, T>>();
-        while (recordCount != maxRecords && System.currentTimeMillis() < startTime + timeout) {
-            var consumedRecords = kafkaConsumer.poll(Duration.of(2, ChronoUnit.SECONDS));
-            recordCount += consumedRecords.count();
-            for (var record : consumedRecords) {
-                records.add(record);
-            }
-        }
-        assertThat(records).isNotNull();
-        return records;
     }
 
 }

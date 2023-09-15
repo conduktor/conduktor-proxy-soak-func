@@ -50,6 +50,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: cars
         replicationFactor: 1
@@ -57,11 +58,13 @@ actions:
 
   - type: LIST_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     assertExists:
       - cars
 
   - type: PRODUCE
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: cars
     messages:
       - value: '{"type":"Sports","price":75,"color":"blue"}'
@@ -69,11 +72,8 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: consume-cars
-      auto.offset.reset: earliest
-    topics:
-      - cars
+    kafkaConfig: teamA-sa.properties
+    topic: cars
     assertSize: 2
     assertions:
       - description: confirm Sport
@@ -87,6 +87,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: red-cars
         replicationFactor: 1
@@ -113,11 +114,8 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: consume-red-cars
-      auto.offset.reset: earliest
-    topics:
-      - red-cars
+    kafkaConfig: teamA-sa.properties
+    topic: red-cars
     assertSize: 1
     assertions:
       - description: confirm Sport is not there because it's not red

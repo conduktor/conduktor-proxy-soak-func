@@ -73,6 +73,7 @@ actions:
   - type: SH
     description: create 100 topics in //
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       for topic_number in `seq 100`; do 
@@ -112,6 +113,7 @@ actions:
   - type: SH
     description: send data to the 100 topics in //
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       for topic_number in `seq 100`; do 
@@ -138,6 +140,7 @@ actions:
   - type: SH
     description: consume data to the topics using groups in //
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       for topic_number in `seq 100`; do 
@@ -154,6 +157,7 @@ actions:
   - type: SH
     description: assert number of consumer groups
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       echo "number of consumer groups " $(kafka-consumer-groups \
@@ -166,6 +170,7 @@ actions:
   - type: SH
     description: describe each consumer groups
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       for topic_number in `seq 100`; do 
@@ -182,6 +187,7 @@ actions:
   - type: SH
     description: delete topics  in //
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       for topic_number in `seq 100`; do 
@@ -222,6 +228,7 @@ actions:
   - type: SH
     description: create topic and initialize with simple data and fetch it
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       kafka-topics \
@@ -259,6 +266,7 @@ actions:
   - type: SH
     description: read from topic and it works
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       kafka-console-consumer \
@@ -271,6 +279,7 @@ actions:
   - type: SH
     description: add transactional data
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
         kcat -P -b ${BOOTSTRAP_SERVERS} \
@@ -281,6 +290,7 @@ actions:
   - type: SH
     description: read from topic and it fails
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       kafka-console-consumer \

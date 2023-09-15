@@ -39,8 +39,11 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -345,7 +348,7 @@ public class ScenarioTest {
                                                         """,
                                                 message.getValue(),
                                                 clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                                                action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
+                                                action.getKafkaConfig() == null ? "" : " \\\n       --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
                         code(action, id, command);
@@ -373,37 +376,83 @@ public class ScenarioTest {
                     properties.put("auto.offset.reset", "earliest");
                 }
                 try (var consumer = clientFactory.consumer(properties)) {
-                    var records = KafkaActionUtils.consume(consumer, action.getTopics(), action.getMaxMessages() == null ? 100 : action.getMaxMessages(), action.getTimeout());
-                    if (action.isShowRecords()) {
-                        records.stream().forEach(System.out::println);
+                    int maxRecords = action.getMaxMessages() == null ? 100 : action.getMaxMessages();
+                    consumer.subscribe(Arrays.asList(action.getTopic()));
+                    int recordCount = 0;
+                    long startTime = System.currentTimeMillis();
+                    var records = new ArrayList<ConsumerRecord<String, String>>();
+                    final long timeout;
+                    if (action.getTimeout() != null) {
+                        timeout = action.getTimeout();
+                    } else if (action.getAssertSize() != null || action.getMaxMessages() == null) {
+                        timeout = TimeUnit.SECONDS.toMillis(5);
+                    } else {
+                        timeout = TimeUnit.MINUTES.toMillis(1);
                     }
+                    while (recordCount < maxRecords || recordCount > action.getAssertSize()) {
+                        if (!(System.currentTimeMillis() < startTime + timeout)) break;
+                        var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
+                        recordCount += consumedRecords.count();
+                        for (var record : consumedRecords) {
+                            if (action.isShowRecords()) {
+                                System.out.println("[p:"+ record.partition() + "/o:" + record.offset() + "] " + record.value());
+                            }
+                            records.add(record);
+                        }
+                    }
+                    assertThat(records).isNotNull();
                     if (Objects.nonNull(action.getAssertSize())) {
                         assertThat(records.size())
                                 .isGreaterThanOrEqualTo(action.getAssertSize());
                     }
                     assertRecords(records, action.getAssertions());
                 }
-                for (String topic : action.getTopics()) {
-                    code(action, id, """
-                                    kafka-console-consumer  \\
-                                        --bootstrap-server %s%s \\
-                                        --group %s \\
-                                        --topic %s%s%s
-                                    """,
-                            clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
-                            properties.getProperty("group.id"),
-                            action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
-                            topic,
-                            "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
-                            action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + action.getMaxMessages()
-                    );
-                }
+                code(action, id, """
+                                kafka-console-consumer  \\
+                                    --bootstrap-server %s%s \\
+                                    --group %s \\
+                                    --topic %s%s%s
+                                """,
+                        clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                        properties.getProperty("group.id"),
+                        action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
+                        action.getTopic(),
+                        "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
+                        action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + action.getMaxMessages()
+                );
+            }
+            case FAILOVER -> {
+                var action = ((Scenario.FailoverAction) _action);
+                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+                String gateway = gatewayProperties.get("gateway.host");
+                given()
+                        .baseUri(gateway + "/admin/pclusters/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .contentType(ContentType.JSON)
+                        .when()
+                        .post("/pcluster/{from}/switch?to={to}", action.from, action.to)
+                        .then()
+                        .statusCode(SC_OK)
+                        .extract()
+                        .response();
+
+                code(action, id, """
+                                      curl \\
+                                        --silent \\
+                                        --user "admin:conduktor" \\
+                                        --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s'
+                                """,
+                        gateway,
+                        action.from,
+                        action.to);
             }
             case ADD_INTERCEPTORS -> {
                 var action = ((Scenario.AddInterceptorAction) _action);
-                configurePlugins(action.getInterceptors());
                 LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
                 String gateway = gatewayProperties.get("gateway.host");
+
+                configurePlugins(gateway, action.getInterceptors());
                 LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors = action.getInterceptors();
                 for (var request : interceptors.entrySet()) {
                     LinkedHashMap<String, PluginRequest> plugins = request.getValue();
@@ -425,10 +474,7 @@ public class ScenarioTest {
                                 pluginName,
                                 new ObjectMapper().writeValueAsString(pluginBody));
                     }
-
                 }
-
-
             }
             case REMOVE_INTERCEPTORS -> {
                 var action = ((Scenario.RemoveInterceptorAction) _action);
@@ -505,7 +551,7 @@ public class ScenarioTest {
         writeStringToFile(propertiesFile, content, Charset.defaultCharset());
     }
 
-    private void execute(String id, Scenario.ScriptAction action, Properties properties) throws IOException, InterruptedException {
+    private void execute(String id, Scenario.ShAction action, Properties properties) throws IOException, InterruptedException {
         String expandedScript = action.getScript();
 
         var env = new HashMap<String, String>();
@@ -514,6 +560,11 @@ public class ScenarioTest {
             String value = properties.getProperty(key);
             expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
             env.put(formattedKey, value);
+        }
+
+        if (action.getGateway() != null) {
+            LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
+            expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayProperties.get("gateway.host"));
         }
 
         code(action, id, expandedScript);
@@ -589,19 +640,19 @@ public class ScenarioTest {
     }
 
 
-    private static void configurePlugins(LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
+    private static void configurePlugins(String gateway, LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
         for (var plugin : plugins.entrySet()) {
-            configurePlugins(plugin.getValue(), plugin.getKey());
+            configurePlugins(gateway, plugin.getValue(), plugin.getKey());
         }
     }
 
-    private static void configurePlugins(LinkedHashMap<String, PluginRequest> plugins, String vcluster) {
+    private static void configurePlugins(String gateway, LinkedHashMap<String, PluginRequest> plugins, String vcluster) {
         for (var plugin : plugins.entrySet()) {
             var pluginName = plugin.getKey();
             log.info("Configuring " + pluginName);
             var pluginBody = plugin.getValue();
             given()
-                    .baseUri("http://localhost:8888/admin/interceptors/v1")
+                    .baseUri(gateway + "/admin/interceptors/v1")
                     .auth()
                     .basic(ADMIN_USER, ADMIN_PASSWORD)
                     .body(pluginBody)

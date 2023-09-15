@@ -125,6 +125,7 @@ actions:
 
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       kafka-topics \
@@ -186,6 +187,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: concentrated-topic-with-10-partitions
         replicationFactor: 1
@@ -196,6 +198,7 @@ actions:
 
   - type: LIST_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     assertExists:
       - concentrated-topic-with-10-partitions
       - concentrated-topic-with-100-partitions
@@ -206,14 +209,15 @@ actions:
 
   - type: PRODUCE
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
     messages:
       - value: '{"type": "Sports", "price": 75, "color": "blue"}'
 
   - type: CONSUME
     kafka: teamA
-    topics:
-      - concentrated-topic-with-10-partitions
+    kafkaConfig: teamA-sa.properties
+    topic: concentrated-topic-with-10-partitions
     assertSize: 1
     assertions:
       - description: Assert expected message
@@ -223,14 +227,15 @@ actions:
 
   - type: PRODUCE
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
     messages:
       - value: '{"msg":"hello world"}'
 
   - type: CONSUME
     kafka: teamA
-    topics:
-      - concentrated-topic-with-100-partitions
+    kafkaConfig: teamA-sa.properties
+    topic: concentrated-topic-with-100-partitions
     assertSize: 1
     assertions:
       - description: Assert expected message
@@ -241,6 +246,7 @@ actions:
   - type: SH
     showOutput: true
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     script: |
       docker compose --profile ksqldb up -d --wait
 

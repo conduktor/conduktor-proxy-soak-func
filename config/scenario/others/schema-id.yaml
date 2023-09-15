@@ -49,6 +49,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: users
         replicationFactor: 1
@@ -56,6 +57,7 @@ actions:
 
   - type: LIST_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     assertExists:
       - users
 
@@ -80,6 +82,7 @@ actions:
 
   - type: PRODUCE
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topic: users
     assertError: true
     assertErrorMessages:
@@ -89,15 +92,13 @@ actions:
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: consume-should-be-empty
-      auto.offset.reset: earliest
-    topics:
-      - users
+    kafkaConfig: teamA-sa.properties
+    topic: users
     assertSize: 0
 
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
@@ -126,17 +127,15 @@ actions:
      
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       curl --silent http://localhost:8081/subjects/ | jq     
 
   - type: CONSUME
     kafka: teamA
-    properties:
-      group.id: consume-users
-      auto.offset.reset: earliest
-    topics:
-      - users
+    kafkaConfig: teamA-sa.properties
+    topic: users
     assertSize: 1
 
   - type: SUCCESS

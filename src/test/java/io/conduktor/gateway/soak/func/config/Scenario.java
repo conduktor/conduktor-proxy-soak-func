@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Data
 @NoArgsConstructor
@@ -57,7 +58,8 @@ public class Scenario {
             @JsonSubTypes.Type(value = SuccessAction.class, name = "SUCCESS"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
-            @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES")
+            @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES"),
+            @JsonSubTypes.Type(value = FailoverAction.class, name = "FAILOVER")
     })
     @Data
     @NoArgsConstructor
@@ -147,11 +149,11 @@ public class Scenario {
     public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions = new LinkedList<>();
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private int timeout = 5000;
+        private Long timeout;
         private Integer maxMessages;
         private Integer assertSize;
-        private boolean showRecords = false;
-        private List<String> topics;
+        private boolean showRecords = true;
+        private String topic;
     }
 
     @Data
@@ -160,6 +162,14 @@ public class Scenario {
     public static class CreateVirtualClustersAction extends GatewayAction {
         public String name;
         public String serviceAccount = "sa";
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FailoverAction extends GatewayAction {
+        public String from;
+        public String to;
     }
 
     @Data
@@ -222,7 +232,8 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ScriptAction extends KafkaAction {
+    public static class ShAction extends KafkaAction {
+        public String gateway;
         public String script;
         public boolean showOutput = false;
         public Integer assertError;
@@ -231,13 +242,6 @@ public class Scenario {
         public List<String> assertOutputDoesNotContain = new ArrayList<>();
     }
 
-    public interface HasKafka {
-        String getKafka();
-    }
-
-    @Data
-    public static class ShAction extends ScriptAction implements HasKafka {
-    }
 
     @Data
     @NoArgsConstructor
@@ -288,6 +292,7 @@ public class Scenario {
         REMOVE_INTERCEPTORS,
         LIST_INTERCEPTORS,
         SH,
-        DESCRIBE_KAFKA_PROPERTIES;
+        DESCRIBE_KAFKA_PROPERTIES,
+        FAILOVER;
     }
 }

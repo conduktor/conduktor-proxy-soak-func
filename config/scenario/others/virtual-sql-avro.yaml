@@ -55,6 +55,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: cars
         replicationFactor: 1
@@ -62,11 +63,13 @@ actions:
 
   - type: LIST_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     assertExists:
       - cars
 
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
@@ -104,6 +107,7 @@ actions:
       
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
@@ -117,6 +121,7 @@ actions:
 
   - type: CREATE_TOPICS
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     topics:
       - name: red-cars
         replicationFactor: 1
@@ -146,6 +151,7 @@ actions:
 
   - type: SH
     kafka: teamA
+    kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
