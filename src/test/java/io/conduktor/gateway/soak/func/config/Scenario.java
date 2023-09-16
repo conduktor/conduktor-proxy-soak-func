@@ -175,6 +175,7 @@ public class Scenario {
         private Integer maxMessages;
         private Integer assertSize;
         private boolean showRecords = false;
+        private boolean showHeaders = false;
         private String topic;
     }
 

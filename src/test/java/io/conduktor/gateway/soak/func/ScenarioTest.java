@@ -15,16 +15,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -39,7 +35,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -53,11 +48,11 @@ import java.util.stream.Stream;
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
 import static io.restassured.RestAssured.given;
 import static java.lang.String.format;
+import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.Files.createDirectory;
-import static org.apache.commons.io.FileUtils.readFileToString;
-import static org.apache.commons.io.FileUtils.writeStringToFile;
+import static org.apache.commons.io.FileUtils.*;
 import static org.apache.commons.io.FilenameUtils.getExtension;
-import static org.apache.commons.lang3.StringUtils.trimToEmpty;
+import static org.apache.commons.lang3.StringUtils.*;
 import static org.apache.http.HttpStatus.SC_CREATED;
 import static org.apache.http.HttpStatus.SC_OK;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -72,6 +67,62 @@ public class ScenarioTest {
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
     public static final String GATEWAY_HOST = "gateway.host";
     public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
+    public static final String TYPE_SH = """
+            function execute() {
+                file=$1
+                chars=$(cat $file| wc -c)
+                if [ "$chars" -lt 100 ] ; then
+                    cat $file | pv -qL 50
+                elif [ "$chars" -lt 250 ] ; then
+                    cat $file | pv -qL 100
+                elif [ "$chars" -lt 500 ] ; then
+                    cat $file | pv -qL 200
+                else
+                    cat $file | pv -qL 400
+                fi
+                . $file
+            }
+
+            execute $1
+            """;
+    public static final String RECORD_ASCIINEMA_SH = """
+            for stepSh in $(ls step*sh | sort ) ; do
+                echo "Processing asciinema for $stepSh"
+                step=$(echo "$stepSh" | sed "s/.sh$//" )
+                
+                asciinema rec \\
+                  --title "$step" \\
+                  --idle-time-limit 2 \\
+                  --cols 140 --rows 20 \\
+                  --command "sh type.sh $step.sh" \\
+                  asciinema/$step.asciinema
+                svg-term \\
+                  --in asciinema/$step.asciinema \\
+                  --out images/$step.svg \\
+                  --window true
+                agg \\
+                  --theme "asciinema" \\
+                  --last-frame-duration 1 \\
+                  --no-loop \\
+                  asciinema/$step.asciinema \\
+                  images/$step.gif
+            done
+            """;
+    public static final String RECORD_COMMAND_SH = """
+            for stepSh in $(ls step*sh | sort ) ; do
+                echo "Processing $stepSh"
+                stepTxt=$(echo "$stepSh" | sed "s/.sh$/.txt/" )
+                stepOutputTag=$(echo "$stepSh" | sed "s/.sh$/-OUTPUT/" )
+                sh -x $stepSh > output/$stepOutputTag.txt 2>&1
+
+                awk '
+                  BEGIN { content = ""; tag = "'$stepOutputTag'" }
+                  FNR == NR { content = content $0 ORS; next }
+                  { gsub(tag, content); print }
+                ' output/$stepOutputTag.txt Readme.md > temp.txt && mv temp.txt Readme.md
+
+            done
+            """;
 
     private static boolean cleanupAfterTest = false;
 
@@ -108,7 +159,7 @@ public class ScenarioTest {
         List<Arguments> scenarios = new ArrayList<>();
         for (var scenarioFolder : scenerioFolders) {
             File executionFolder = new File(ScenarioTest.executionFolder.getPath() + "/" + scenarioFolder.getName());
-            FileUtils.copyDirectory(scenarioFolder, executionFolder);
+            copyDirectory(scenarioFolder, executionFolder);
             for (var file : scenarioFolder.listFiles()) {
                 if (isScenario(file)) {
                     Scenario scenario = scenarioYamlConfigReader.readYamlInResources(file.getPath());
@@ -130,28 +181,26 @@ public class ScenarioTest {
         var actions = scenario.getActions();
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/asciinema"));
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/images"));
+        createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/output"));
 
         appendTo("docker-compose.yaml", getUpdatedDockerCompose(scenario));
         appendTo("run.sh", "");
-        appendTo("type.sh", """
-                function execute() {
-                    file=$1
-                    chars=$(cat $file| wc -c)
-                    if [ "$chars" -lt 100 ] ; then
-                        cat $file | pv -qL 50
-                    elif [ "$chars" -lt 250 ] ; then
-                        cat $file | pv -qL 100
-                    elif [ "$chars" -lt 500 ] ; then
-                        cat $file | pv -qL 200
-                    else
-                        cat $file | pv -qL 400
-                    fi
-                    . $file
-                }
-                                
-                execute $1
-                """);
+        appendTo("type.sh", TYPE_SH);
+        appendTo("record-output.sh", RECORD_COMMAND_SH);
+        appendTo("record-asciinema.sh", RECORD_ASCIINEMA_SH);
         runScenarioSteps(scenario, actions);
+
+        log.info("Re-recording the scenario to include bash commands output in Readme");
+        ProcessBuilder commandOutput = new ProcessBuilder();
+        commandOutput.directory(scenarioFolder);
+        commandOutput.command("sh", "record-output.sh");
+        commandOutput.start().waitFor();
+
+        log.info("Recording one more time with asciinema to be fancy");
+        ProcessBuilder recording = new ProcessBuilder();
+        recording.directory(scenarioFolder);
+        recording.command("sh", "record-asciinema.sh");
+        recording.start().waitFor();
     }
 
     private Scenario scenario;
@@ -194,9 +243,9 @@ public class ScenarioTest {
         appendTo("Readme.md",
                 format("""
                                 %s
-                                                        
+
                                 %s
-                                                                
+
                                 """,
                         _action.markdownHeader(),
                         trimToEmpty(_action.getMarkdown())));
@@ -212,21 +261,21 @@ public class ScenarioTest {
                                         ```sh
                                         cat %s
                                         ```
-                                                                
+
                                         <details>
-                                          <summary>Results</summary>
-                                          
+                                          <summary>File content</summary>
+
                                         ```%s
                                         %s
                                         ```
-                                          
+
                                         </details>
-                                                            
+
                                         """,
                                 action.filename,
                                 getExtension(action.filename),
-                                trimToEmpty(readFileToString(new File(scenarioFolder.getAbsoluteFile() + "/" + action.filename), Charset.defaultCharset())
-                                )));
+                                trimToEmpty(readFileToString(new File(scenarioFolder.getAbsoluteFile() + "/" + action.filename), defaultCharset()))
+                        ));
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
@@ -241,7 +290,6 @@ public class ScenarioTest {
                 properties.put("sasl.mechanism", "PLAIN");
                 properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
                 clusters.put(action.getName(), properties);
-                System.out.println("Adding " + action.getName());
 
                 savePropertiesToFile(new File(scenarioFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
@@ -252,14 +300,14 @@ public class ScenarioTest {
                                     --user 'admin:conduktor' \\
                                     --header 'Content-Type: application/json' \\
                                     --data-raw '{"lifeTimeSeconds": 7776000}' | jq -r ".token")
-                                    
+
                                 echo  \"\"\"
                                 bootstrap.servers=%s
                                 security.protocol=SASL_PLAINTEXT
                                 sasl.mechanism=PLAIN
                                 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='$token';
                                 \"\"\" > %s-%s.properties
-                                                                
+
                                 cat %s-%s.properties
                                 """,
                         gatewayHost,
@@ -392,7 +440,7 @@ public class ScenarioTest {
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
-                        code(scenario, action, id, StringUtils.removeEnd(command, "\n"));
+                        code(scenario, action, id, removeEnd(command, "\n"));
 
 
                         if (action.getAssertError() != null) {
@@ -461,7 +509,7 @@ public class ScenarioTest {
                 code(scenario, action, id, """
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
-                                    --topic %s%s%s%s%s | jq
+                                    --topic %s%s%s%s%s%s
                                 """,
                         kafkaBoostrapServers(clusters, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
@@ -469,7 +517,8 @@ public class ScenarioTest {
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
                         action.getAssertSize() == null ? "" : " \\\n    --timeout-ms " + timeout,
-                        action.getGroupId() == null ? "" : " \\\n    --group " + action.getGroupId()
+                        action.getGroupId() == null ? "" : " \\\n    --group " + action.getGroupId(),
+                        !action.isShowHeaders() ? " | jq" : " \\\n    --property print.headers=true"
                 );
             }
             case FAILOVER -> {
@@ -512,13 +561,13 @@ public class ScenarioTest {
 
                         appendTo("Readme.md",
                                 format("""
-                                                
+
                                                 Creating the interceptor named `%s` of the plugin `%s` using the following payload
 
                                                 ```json
                                                 %s
                                                 ```
-                                                
+
                                                 Here's how to send it:
 
                                                 """,
@@ -531,7 +580,7 @@ public class ScenarioTest {
                         code(scenario, action, id, """
                                         curl \\
                                             --silent \\
-                                            --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
+                                            --request POST "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
                                             --user 'admin:conduktor' \\
                                             --header 'Content-Type: application/json' \\
                                             --data-raw '%s' | jq
@@ -638,17 +687,17 @@ public class ScenarioTest {
                 for (String key : properties.stringPropertyNames()) {
                     String formattedKey = key.toUpperCase().replace(".", "_");
                     String value = properties.getProperty(key);
-                    expandedScript = StringUtils.replace(expandedScript, "${" + formattedKey + "}", value);
+                    expandedScript = replace(expandedScript, "${" + formattedKey + "}", value);
                     env.put(formattedKey, value);
                 }
 
                 if (action.getGateway() != null) {
-                    expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayHost(action));
+                    expandedScript = replace(expandedScript, "${GATEWAY_HOST}", gatewayHost(action));
                 }
 
-                code(scenario, action, id, StringUtils.removeEnd(expandedScript, "\n"));
+                code(scenario, action, id, removeEnd(expandedScript, "\n"));
                 File scriptFile = new File(scenarioFolder + "/step-" + id + ".sh");
-                writeStringToFile(scriptFile, addShHeader(id, action) + action.getScript(), Charset.defaultCharset());
+                writeStringToFile(scriptFile, ("echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle()) + "'\n") + action.getScript(), defaultCharset());
 
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
@@ -716,7 +765,7 @@ public class ScenarioTest {
     }
 
     private String kafkaBoostrapServers(Map<String, Properties> clusters, Scenario.KafkaAction action) {
-        if (StringUtils.isBlank(action.getKafka())) {
+        if (isBlank(action.getKafka())) {
             throw new RuntimeException(action.simpleMessage() + "kafka is not specified");
         }
         if (!clusters.containsKey(action.getKafka())) {
@@ -737,7 +786,7 @@ public class ScenarioTest {
     }
 
     private void assertGatewayHost(Scenario.Action action) {
-        if (StringUtils.isBlank(action.getGateway())) {
+        if (isBlank(action.getGateway())) {
             throw new RuntimeException(action.simpleMessage() + "gateway is not specified");
         }
         if (!scenario.getServices().containsKey(action.getGateway())) {
@@ -748,20 +797,14 @@ public class ScenarioTest {
         }
     }
 
-    @NotNull
-    private String addShHeader(String id, Scenario.ShAction action) {
-        return action.getScript().startsWith("#!/bin/sh") ? "" : "#!/bin/sh\n"
-                + "echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle()) + "'\n";
-    }
-
     private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
         String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(Collectors.joining("\n"));
-        writeStringToFile(propertiesFile, content, Charset.defaultCharset());
+        writeStringToFile(propertiesFile, content, defaultCharset());
     }
 
     private Properties getProperties(Map<String, Properties> virtualClusters, Scenario.KafkaAction action) {
         Properties p = new Properties();
-        if (StringUtils.isNotBlank(action.getKafka())) {
+        if (isNotBlank(action.getKafka())) {
             Properties t = virtualClusters.get(action.getKafka());
             if (t == null) {
                 throw new RuntimeException("No kafka defined for " + action.getKafka());
@@ -834,7 +877,7 @@ public class ScenarioTest {
     }
 
     private static VClusterCreateResponse createVirtualCluster(String gateway, String vcluster, String username) {
-        log.info("Creating virtual cluster " + vcluster);
+        log.debug("Creating virtual cluster " + vcluster);
         return given()
                 .baseUri(gateway + "/admin/vclusters/v1")
                 .auth()
@@ -896,12 +939,11 @@ public class ScenarioTest {
             boolean validKey = validate(recordAssertion.getKey(), keys);
             boolean validValues = validate(recordAssertion.getValue(), values);
             boolean validHeader = validateHeaders(recordAssertion, headers);
-            if (StringUtils.isNotBlank(recordAssertion.getDescription())) {
+            if (isNotBlank(recordAssertion.getDescription())) {
                 log.info("Test: " + recordAssertion.getDescription());
             }
             if ((validKey && validValues && validHeader) == false) {
                 log.info("Assertion failed with key: " + validKey + ", values: " + validValues + ", header: " + validHeader);
-                log.info("" + records);
                 Assertions.fail(recordAssertion.getDescription() + " failed");
             }
         }
@@ -913,11 +955,8 @@ public class ScenarioTest {
         }
         for (String headerKey : recordAssertion.getHeaders().keySet()) {
             Scenario.Assertion headerAssertion = recordAssertion.getHeaders().get(headerKey);
-            if (headerAssertion == null) {
-                return false;
-            }
             List<String> headerValues = headers.stream().filter(e -> headerKey.equals(e.key())).map(h -> new String(h.value())).toList();
-            if (validate(headerAssertion, headerValues)) {
+            if (!validate(headerAssertion, headerValues)) {
                 return false;
             }
         }
@@ -935,12 +974,12 @@ public class ScenarioTest {
         String expected = assertion.getExpected();
         return switch (assertion.getOperator()) {
             case "satisfies" -> satisfies(data, expected);
-            case "isBlank" -> StringUtils.isBlank(data);
-            case "isNotBlank" -> StringUtils.isNotBlank(data);
-            case "containsIgnoreCase" -> StringUtils.containsIgnoreCase(data, expected);
-            case "contains" -> StringUtils.contains(data, expected);
-            case "doesNotContain" -> !StringUtils.contains(data, expected);
-            case "doesNotContainIgnoringCase" -> !StringUtils.containsIgnoreCase(data, expected);
+            case "isBlank" -> isBlank(data);
+            case "isNotBlank" -> isNotBlank(data);
+            case "containsIgnoreCase" -> containsIgnoreCase(data, expected);
+            case "contains" -> contains(data, expected);
+            case "doesNotContain" -> !contains(data, expected);
+            case "doesNotContainIgnoringCase" -> !containsIgnoreCase(data, expected);
             default -> throw new RuntimeException(assertion.getOperator() + " is not supported");
         };
     }
@@ -965,77 +1004,54 @@ public class ScenarioTest {
     }
 
     private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
-        String stepTitle = "Step " + id + " " + action.getType() + ": " + trimToEmpty(action.getTitle());
 
         String step = "step-" + id + "-" + action.getType();
-        appendTo("run.sh", "echo '" + stepTitle + "'\nsh " + step + ".sh\n\n");
+        appendTo("run.sh", "echo '" + action.getTitle() + "'\nsh " + step + ".sh\n\n");
         appendTo(step + ".sh", format(format, args));
-
-        // svg-term ?
-        appendTo("record.sh",
-                format("""
-                                echo "%s - %s"
-                                asciinema rec \\
-                                    --title "%s - %s" \\
-                                    --idle-time-limit 2 \\
-                                    --cols 140 --rows 20 \\
-                                    --command "sh type.sh %s.sh" \\
-                                    asciinema/%s.asciinema
-                                svg-term \\
-                                    --in asciinema/%s.asciinema \\
-                                    --out images/%s.svg \\
-                                    --window true
-                                agg \\
-                                    --theme "asciinema" \\
-                                    --last-frame-duration 1 \\
-                                    --no-loop \\
-                                    asciinema/%s.asciinema \\
-                                    images/%s.gif
-                                """,
-                        scenario.getTitle(),
-                        stepTitle,
-                        scenario.getTitle(),
-                        stepTitle,
-                        step,
-                        step,
-                        step,
-                        step,
-                        step,
-                        step));
-
 
         appendTo("/Readme.md",
                 format("""
                                 ```sh
                                 %s
                                 ```
-                                                        
+
                                 <details>
-                                  <summary>Results</summary>
-                                  
-                                  ![%s](images/%s.svg)
-                                  
+                                  <summary>*Live* video command output</summary>
+
+                                  ![%s](images/%s.gif)
+
                                 </details>
-                                                    
+
+                                <details>
+                                  <summary>Command output</summary>
+
+                                ```sh
+                                %s-OUTPUT
+                                ```
+
+                                </details>
+
                                 """,
                         format(format, args),
-                        trimToEmpty(action.getTitle()),
+                        action.getTitle(),
                         step,
-                        trimToEmpty(action.getTitle())
+                        step
                 ));
     }
 
     private static void appendTo(String filename, String code) throws IOException {
         File file = new File(scenarioFolder + "/" + filename);
-        if ("sh".equals(FilenameUtils.getExtension(file.getName())) && !code.startsWith("#!/bin/sh")) {
-            code = "#!/bin/sh\n" + code;
+        if ("sh".equals(getExtension(file.getName())) && !code.startsWith("#!/bin/")) {
+            if ((file.exists() && !readFileToString(file, defaultCharset()).startsWith("#!/bin/"))) {
+                code = "#!/bin/sh\n" + code;
+            }
         }
         writeStringToFile(
                 file,
                 code,
-                Charset.defaultCharset(),
+                defaultCharset(),
                 true);
-        if ("sh".equals(FilenameUtils.getExtension(file.getName()))) {
+        if ("sh".equals(getExtension(file.getName()))) {
             file.setExecutable(true);
         }
     }

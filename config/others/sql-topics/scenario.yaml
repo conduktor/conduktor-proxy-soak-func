@@ -47,7 +47,7 @@ actions:
     title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
-      As can be seen from docker-compose.yaml the demo environment consists of the following:
+      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
       
       * A single Zookeeper Server
       * A main 3 nodes Kafka cluster
@@ -56,6 +56,7 @@ actions:
   - type: DOCKER
     title: Start the docker environment
     command: docker compose up -d --wait
+    markdown: Start the environment with
 
   - type: CREATE_VIRTUAL_CLUSTERS
     title: Create teamA virtual cluster
