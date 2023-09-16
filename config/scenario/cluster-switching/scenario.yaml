@@ -161,7 +161,7 @@ services:
       gateway.host: http://localhost:8889
 
 actions:
-  - type: STEP
+  - type: INTRODUCTION
     title: What is cluster switching?
     markdown: |
       Conduktor Gateway's cluster switching allows to hot-switch the backend Kafka cluster without having to change your client configuration or restart Gateway.
@@ -180,6 +180,7 @@ actions:
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml
+    headerLevel: 3
     markdown: |
       As can be seen from docker-compose.yaml the demo environment consists of the following:
   
@@ -192,6 +193,7 @@ actions:
   - type: FILE
     title: Review the Gateway configuration
     filename: clusters.yaml
+    headerLevel: 3
     markdown: |
       The Kafka brokers used by Gateway are stored in `clusters.yaml` and is mounted into the Gateway container. 
       The failover cluster is configured with the `gateway.role` property set to `failover`. 
@@ -199,6 +201,7 @@ actions:
 
   - type: FILE
     title: Review the Mirror-Maker configuration
+    headerLevel: 3
     filename: mm2.properties
     markdown: |
       MirrorMaker is configured to replicate all topics and groups from the main cluster to the failover cluster (see `mm2.properties`).
@@ -329,3 +332,8 @@ actions:
         value:
           operator: containsIgnoreCase
           expected: 'thibaut'
+
+  - type: CONCLUSION
+    title: Conclusion
+    markdown: |
+      you've seen something deeply interesting

@@ -239,6 +239,6 @@ actions:
           expected: 'existingSharedMessage'
 
 
-  - type: SUCCESS
+  - type: CONCLUSION
     title: Done
 

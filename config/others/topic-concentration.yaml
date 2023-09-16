@@ -250,6 +250,6 @@ actions:
     script: |
       docker compose --profile ksqldb up -d --wait
 
-  - type: SUCCESS
+  - type: CONCLUSION
     title: Done
 

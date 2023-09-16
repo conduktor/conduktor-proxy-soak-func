@@ -6,9 +6,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
-import java.io.File;
 import java.util.*;
+
+import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 
 @Data
 @NoArgsConstructor
@@ -22,6 +24,11 @@ public class Scenario {
         Map<String, Properties> ret = new HashMap<>();
         getServices().forEach((name, s) -> ret.put(name, s.toProperties()));
         return ret;
+    }
+
+    @Override
+    public String toString() {
+        return title;
     }
 
     @Data
@@ -55,7 +62,8 @@ public class Scenario {
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = FileAction.class, name = "FILE"),
-            @JsonSubTypes.Type(value = SuccessAction.class, name = "SUCCESS"),
+            @JsonSubTypes.Type(value = IntroductionAction.class, name = "INTRODUCTION"),
+            @JsonSubTypes.Type(value = ConclusionAction.class, name = "CONCLUSION"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
             @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES"),
@@ -67,11 +75,16 @@ public class Scenario {
     @AllArgsConstructor
     public static class Action {
         private ActionType type;
+        private int headerLevel = 2;
         private String title = "";
         private String markdown = "";
 
         public String simpleMessage() {
             return type + " " + title;
+        }
+
+        public String markdownHeader() {
+            return StringUtils.repeat("#", getHeaderLevel()) + " " + trimToEmpty(getTitle());
         }
     }
 
@@ -209,7 +222,14 @@ public class Scenario {
     public static class DocumentationAction extends Action {
     }
 
-    public static class SuccessAction extends Action {
+    @Data
+    public static class IntroductionAction extends Action {
+        public int headerLevel = 1;
+    }
+
+    @Data
+    public static class ConclusionAction extends Action {
+        public int headerLevel = 1;
     }
 
     @Data
@@ -245,8 +265,10 @@ public class Scenario {
         public Integer assertExitCode;
         public List<String> assertOutputContains = new ArrayList<>();
         public List<String> assertOutputDoesNotContain = new ArrayList<>();
+
         abstract public String getCommand();
     }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -298,7 +320,8 @@ public class Scenario {
 
     public enum ActionType {
         STEP,
-        SUCCESS,
+        INTRODUCTION,
+        CONCLUSION,
         FILE,
         CREATE_TOPICS,
         CREATE_VIRTUAL_CLUSTERS,

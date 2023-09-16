@@ -162,7 +162,7 @@ public class ScenarioTest {
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
-                step(clusters, clientFactory, format("%02d", ++id), _action);
+                step(clusters, clientFactory, ++id, _action);
             }
         }
     }
@@ -187,23 +187,22 @@ public class ScenarioTest {
         }
     }
 
-    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, String id, Scenario.Action _action) throws Exception {
+    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int _id, Scenario.Action _action) throws Exception {
+        String id = format("%02d", _id);
         log.info("[" + id + "] Executing " + _action.simpleMessage());
-
 
         appendTo("Readme.md",
                 format("""
-                                # Step %s - %s
+                                %s
                                 %s
                                                                 
                                 """,
-                        id,
-                        trimToEmpty(_action.getTitle()),
+                        _action.markdownHeader(),
                         trimToEmpty(_action.getMarkdown())));
 
         switch (_action.getType()) {
-            case STEP -> {
-                var action = ((Scenario.StepAction) _action);
+            case INTRODUCTION, CONCLUSION, STEP -> {
+                //
             }
             case FILE -> {
                 var action = ((Scenario.FileAction) _action);
@@ -227,9 +226,6 @@ public class ScenarioTest {
                                 getExtension(action.filename),
                                 trimToEmpty(readFileToString(new File(scenarioFolder.getAbsoluteFile() + "/" + action.filename), Charset.defaultCharset())
                                 )));
-            }
-            case SUCCESS -> {
-                var action = ((Scenario.SuccessAction) _action);
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
@@ -912,10 +908,10 @@ public class ScenarioTest {
     }
 
     private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
-        String stepTitle = "Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle());
+        String stepTitle = "Step " + id + " " + action.getType() + ": " + trimToEmpty(action.getTitle());
 
         String step = "step-" + id + "-" + action.getType();
-        appendTo("run.sh", "echo '" + stepTitle + "'\nsh " + step + "\n\n");
+        appendTo("run.sh", "echo '" + stepTitle + "'\nsh " + step + ".sh\n\n");
         appendTo(step + ".sh", format(format, args));
 
         // svg-term ?

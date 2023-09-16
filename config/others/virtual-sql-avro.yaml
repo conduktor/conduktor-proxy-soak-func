@@ -168,4 +168,4 @@ actions:
       - Processed a total of 1 messages
       - red
 
-  - type: SUCCESS
+  - type: CONCLUSION

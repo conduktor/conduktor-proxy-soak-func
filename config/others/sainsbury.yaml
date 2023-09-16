@@ -300,4 +300,4 @@ actions:
         --from-beginning \
         --max-messages 1 | jq
 
-  - type: SUCCESS
+  - type: CONCLUSION

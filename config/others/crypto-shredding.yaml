@@ -270,6 +270,6 @@ actions:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'
 
-  - type: SUCCESS
+  - type: CONCLUSION
     title: Done
 

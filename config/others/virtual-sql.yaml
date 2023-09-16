@@ -127,4 +127,4 @@ actions:
           operator: containsIgnoreCase
           expected: 'SUV'
 
-  - type: SUCCESS
+  - type: CONCLUSION
