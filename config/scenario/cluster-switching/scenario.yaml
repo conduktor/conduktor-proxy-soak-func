@@ -103,7 +103,7 @@ services:
       hostname: mirror-maker
       volumes:
         - type: bind
-          source: "../config"
+          source: .
           target: /config
           read_only: true
       command: connect-mirror-maker /config/mm2.properties
@@ -135,7 +135,7 @@ services:
         GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path:  /config/cluster-switching-clusters.yaml}'
       volumes:
         - type: bind
-          source: "../config"
+          source: .
           target: /config
           read_only: true
     properties:
@@ -153,7 +153,7 @@ services:
         GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path:  /config/cluster-switching-clusters.yaml}'
       volumes:
         - type: bind
-          source: "../config"
+          source: .
           target: /config
           read_only: true
     properties:
@@ -191,7 +191,7 @@ actions:
 
   - type: FILE
     title: Review the Gateway configuration
-    filename: ../config/cluster-switching-clusters.yaml
+    filename: cluster-switching-clusters.yaml
     markdown: |
       The Kafka brokers used by Gateway are stored in `cluster-switching-clusters.yaml` and is mounted into the Gateway container. 
       The failover cluster is configured with the `gateway.role` property set to `failover`. 
@@ -199,7 +199,7 @@ actions:
 
   - type: FILE
     title: Review the Mirror-Maker configuration
-    filename: ../config/mm2.properties
+    filename: mm2.properties
     markdown: |
       MirrorMaker is configured to replicate all topics and groups from the main cluster to the failover cluster (see `mm2.properties`).
       
