@@ -211,7 +211,7 @@ actions:
       Gateway expects the topics to have the same names on both clusters.
 
   - type: DOCKER
-    title: Start all
+    title: Start the docker environment
     command: docker compose up -d --wait
 
   - type: CREATE_VIRTUAL_CLUSTERS

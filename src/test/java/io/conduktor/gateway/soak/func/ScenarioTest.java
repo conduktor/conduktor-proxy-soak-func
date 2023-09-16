@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -68,6 +69,8 @@ public class ScenarioTest {
     private static final String ADMIN_USER = "admin";
     private static final String ADMIN_PASSWORD = "conduktor";
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
+    public static final String GATEWAY_HOST = "gateway.host";
+    public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
 
     private static boolean cleanupAfterTest = false;
 
@@ -127,12 +130,10 @@ public class ScenarioTest {
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/asciinema"));
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/images"));
 
-        appendTo(
-                "docker-compose.yaml",
-                getUpdatedDockerCompose(scenario));
+        appendTo("docker-compose.yaml", getUpdatedDockerCompose(scenario));
         appendTo("run.sh", "");
         appendTo("type.sh", """
-                echo 'function execute() {
+                function execute() {
                     file=$1
                     chars=$(cat $file| wc -c)
                     if [ "$chars" -lt 100 ] ; then
@@ -149,8 +150,6 @@ public class ScenarioTest {
                                 
                 execute $1
                 """);
-        new File(scenarioFolder.getAbsolutePath() + "/type.sh").setExecutable(true);
-        new File(scenarioFolder.getAbsolutePath() + "/run.sh").setExecutable(true);
         runScenarioSteps(scenario, actions);
     }
 
@@ -229,16 +228,18 @@ public class ScenarioTest {
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
-                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                String gateway = gatewayProperties.get("gateway.host");
-                VClusterCreateResponse response = createVirtualCluster(gateway, action.getName(), action.getServiceAccount());
+                String gatewayHost = gatewayHost(action);
+                String gatewayBootstrapServers = gatewayBoostrapServers(action);
+
+                VClusterCreateResponse response = createVirtualCluster(gatewayHost, action.getName(), action.getServiceAccount());
 
                 Properties properties = clusters.getOrDefault(action.getName(), new Properties());
-                properties.put("bootstrap.servers", gatewayProperties.get("bootstrap.servers"));
+                properties.put(BOOTSTRAP_SERVERS, gatewayBootstrapServers);
                 properties.put("security.protocol", "SASL_PLAINTEXT");
                 properties.put("sasl.mechanism", "PLAIN");
                 properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
                 clusters.put(action.getName(), properties);
+                System.out.println("Adding " + action.getName());
 
                 savePropertiesToFile(new File(scenarioFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
@@ -259,10 +260,10 @@ public class ScenarioTest {
                                                                 
                                 cat %s-%s.properties
                                 """,
-                        gateway,
+                        gatewayHost,
                         action.getName(),
                         action.getServiceAccount(),
-                        gatewayProperties.get("bootstrap.servers"),
+                        gatewayBootstrapServers,
                         action.getServiceAccount(),
                         action.getName(),
                         action.getServiceAccount(),
@@ -292,7 +293,7 @@ public class ScenarioTest {
                                                 --create --if-not-exists \\
                                                 --topic %s
                                             """,
-                                    clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                    kafkaBoostrapServers(clusters, action),
                                     action.getKafkaConfig(),
                                     "" + topic.getReplicationFactor(),
                                     "" + topic.getPartitions(),
@@ -318,7 +319,7 @@ public class ScenarioTest {
                                         --bootstrap-server %s%s \\
                                         --list
                                     """,
-                            clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                            kafkaBoostrapServers(clusters, action),
                             action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig());
                     if (Objects.nonNull(action.assertSize)) {
                         assertThat(topics)
@@ -348,7 +349,7 @@ public class ScenarioTest {
                                             --describe \\
                                             --topic %s
                                         """,
-                                clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                kafkaBoostrapServers(clusters, action),
                                 action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
                                 topic);
                     }
@@ -385,7 +386,7 @@ public class ScenarioTest {
                                                                 --topic %s
                                                         """,
                                                 message.getValue(),
-                                                clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                                                kafkaBoostrapServers(clusters, action),
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
@@ -458,24 +459,23 @@ public class ScenarioTest {
                 code(scenario, action, id, """
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
-                                    --group %s \\
-                                    --topic %s%s%s%s
+                                    --topic %s%s%s%s%s | jq
                                 """,
-                        clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
+                        kafkaBoostrapServers(clusters, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
-                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms  " + timeout
+                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms  " + timeout,
+                        action.getGroupId() == null ? "" : " \\\n    --group  " + action.getGroupId()
                 );
             }
             case FAILOVER -> {
                 var action = ((Scenario.FailoverAction) _action);
-                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                String gateway = gatewayProperties.get("gateway.host");
+                String gatewayHost = gatewayHost(action);
                 given()
-                        .baseUri(gateway + "/admin/pclusters/v1")
+                        .baseUri(gatewayHost + "/admin/pclusters/v1")
                         .auth()
                         .basic(ADMIN_USER, ADMIN_PASSWORD)
                         .contentType(ContentType.JSON)
@@ -490,18 +490,17 @@ public class ScenarioTest {
                                 curl \\
                                   --silent \\
                                   --user "admin:conduktor" \\
-                                  --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s'
+                                  --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s' | jq
                                 """,
-                        gateway,
+                        gatewayHost,
                         action.from,
                         action.to);
             }
             case ADD_INTERCEPTORS -> {
                 var action = ((Scenario.AddInterceptorAction) _action);
-                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                String gateway = gatewayProperties.get("gateway.host");
+                String gatewayHost = gatewayHost(action);
 
-                configurePlugins(gateway, action.getInterceptors());
+                configurePlugins(gatewayHost, action.getInterceptors());
                 LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors = action.getInterceptors();
                 for (var request : interceptors.entrySet()) {
                     LinkedHashMap<String, PluginRequest> plugins = request.getValue();
@@ -516,9 +515,9 @@ public class ScenarioTest {
                                             --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
                                             --user 'admin:conduktor' \\
                                             --header 'Content-Type: application/json' \\
-                                            --data-raw '%s'
+                                            --data-raw '%s' | jq
                                         """,
-                                gateway,
+                                gatewayHost,
                                 vcluster,
                                 pluginName,
                                 new ObjectMapper().writeValueAsString(pluginBody));
@@ -527,27 +526,27 @@ public class ScenarioTest {
             }
             case REMOVE_INTERCEPTORS -> {
                 var action = ((Scenario.RemoveInterceptorAction) _action);
-                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                String gateway = gatewayProperties.get("gateway.host");
+                String gatewayHost = gatewayHost(action);
+
                 for (String name : action.getNames()) {
-                    removePlugin(gateway, action.vcluster, name);
+                    removePlugin(gatewayHost, action.vcluster, name);
                     code(scenario, action, id, """
                                     curl \\
                                         --silent \\
                                         --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
                                         --user 'admin:conduktor' \\
                                         --header 'Content-Type: application/json' \\
-                                        --data-raw '%s'
+                                        --data-raw '%s' | jq
                                     """,
-                            gateway,
+                            gatewayHost,
                             name);
                 }
             }
             case LIST_INTERCEPTORS -> {
                 var action = ((Scenario.ListInterceptorAction) _action);
-                LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                String gateway = gatewayProperties.get("gateway.host");
-                TenantInterceptorsResponse response = getPlugins(gateway, action.vcluster);
+                String gatewayHost = gatewayHost(action);
+
+                TenantInterceptorsResponse response = getPlugins(gatewayHost, action.vcluster);
 
                 if (Objects.nonNull(action.assertSize)) {
                     assertThat(response.interceptors)
@@ -562,9 +561,9 @@ public class ScenarioTest {
                                 curl \\
                                     -u "admin:conduktor" \\
                                     --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
-                                    --header 'Content-Type: application/json'| jq
+                                    --header 'Content-Type: application/json' | jq
                                 """,
-                        gateway,
+                        gatewayHost,
                         action.vcluster);
             }
             case DOCKER -> {
@@ -625,8 +624,7 @@ public class ScenarioTest {
                 }
 
                 if (action.getGateway() != null) {
-                    LinkedHashMap<String, String> gatewayProperties = scenario.getServices().get(action.getGateway()).getProperties();
-                    expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayProperties.get("gateway.host"));
+                    expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayHost(action));
                 }
 
                 code(scenario, action, id, StringUtils.removeEnd(expandedScript, "\n"));
@@ -688,6 +686,45 @@ public class ScenarioTest {
                         action.getKafkaConfig());
 
             }
+        }
+    }
+
+    private String gatewayHost(Scenario.Action action) {
+        assertGatewayHost(action);
+        return scenario.getServices().get(action.getGateway())
+                .getProperties()
+                .get(GATEWAY_HOST);
+    }
+
+    private String kafkaBoostrapServers(Map<String, Properties> clusters, Scenario.KafkaAction action) {
+        if (StringUtils.isBlank(action.getKafka())) {
+            throw new RuntimeException(action.simpleMessage() + "kafka is not specified");
+        }
+        if (!clusters.containsKey(action.getKafka())) {
+            throw new RuntimeException(action.simpleMessage() + " kafka " + action.getKafka() + " is not known");
+        }
+        if (!clusters.get(action.getKafka()).containsKey(BOOTSTRAP_SERVERS)) {
+            throw new RuntimeException(action.simpleMessage() + "kafka " + action.getKafka() + " has not the " + BOOTSTRAP_SERVERS + " property");
+        }
+        return clusters.get(action.getKafka())
+                .getProperty(BOOTSTRAP_SERVERS);
+    }
+    private String gatewayBoostrapServers(Scenario.Action action) {
+        assertGatewayHost(action);
+        return scenario.getServices().get(action.getGateway())
+                .getProperties()
+                .get(BOOTSTRAP_SERVERS);
+    }
+
+    private void assertGatewayHost(Scenario.Action action) {
+        if (StringUtils.isBlank(action.getGateway())) {
+            throw new RuntimeException(action.simpleMessage() + "gateway is not specified");
+        }
+        if (!scenario.getServices().containsKey(action.getGateway())) {
+            throw new RuntimeException(action.simpleMessage() + "gateway " + action.getGateway() + " is not known");
+        }
+        if (!scenario.getServices().get(action.getGateway()).getProperties().containsKey(GATEWAY_HOST)) {
+            throw new RuntimeException(action.simpleMessage() + "gateway " + action.getGateway() + " has not the " + GATEWAY_HOST + " property");
         }
     }
 
@@ -922,7 +959,7 @@ public class ScenarioTest {
                                     --title "%s - %s" \\
                                     --idle-time-limit 2 \\
                                     --cols 140 --rows 20 \\
-                                    --command "sh execute.sh %s.sh" \\
+                                    --command "sh type.sh %s.sh" \\
                                     asciinema/%s.asciinema
                                 svg-term \\
                                     --in asciinema/%s.asciinema \\
@@ -969,10 +1006,17 @@ public class ScenarioTest {
     }
 
     private static void appendTo(String filename, String code) throws IOException {
+        File file = new File(scenarioFolder + "/" + filename);
+        if ("sh".equals(FilenameUtils.getExtension(file.getName())) && !code.startsWith("#!/bin/sh")) {
+            code = "#!/bin/sh\n" + code;
+        }
         writeStringToFile(
-                new File(scenarioFolder + "/" + filename),
+                file,
                 code,
                 Charset.defaultCharset(),
                 true);
+        if ("sh".equals(FilenameUtils.getExtension(file.getName()))) {
+            file.setExecutable(true);
+        }
     }
 }

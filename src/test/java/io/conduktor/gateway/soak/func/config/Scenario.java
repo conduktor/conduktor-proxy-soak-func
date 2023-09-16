@@ -78,6 +78,7 @@ public class Scenario {
         private int headerLevel = 2;
         private String title = "";
         private String markdown = "";
+        public String gateway;
 
         public String simpleMessage() {
             return type + " " + title;
@@ -169,6 +170,7 @@ public class Scenario {
     public static class ConsumeAction extends KafkaAction {
         private LinkedList<RecordAssertion> assertions = new LinkedList<>();
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        private String groupId;
         private Long timeout;
         private Integer maxMessages;
         private Integer assertSize;
@@ -273,7 +275,6 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ShAction extends CommandAction {
-        public String gateway;
         public String script;
 
         @Override
