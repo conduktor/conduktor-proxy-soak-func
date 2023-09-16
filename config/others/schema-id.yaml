@@ -3,21 +3,12 @@ services:
   kafka1:
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka2:
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka3:
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   gateway1:
     docker:
       environment:
@@ -26,9 +17,6 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   gateway2:
     docker:
       environment:
@@ -37,9 +25,6 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
 actions:
 
   - type: CREATE_VIRTUAL_CLUSTERS
