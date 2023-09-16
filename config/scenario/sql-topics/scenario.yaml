@@ -104,14 +104,6 @@ actions:
     markdown: |
       Let's confirm the 2 records are there by consuming from the `cars` topic.
 
-#  - type: CREATE_TOPICS
-#    kafka: teamA
-#    kafkaConfig: teamA-sa.properties
-#    topics:
-#      - name: red-cars
-#        replicationFactor: 1
-#        partitions: 1
-
   - type: ADD_INTERCEPTORS
     title: Create the sql topic `red-cars`
     gateway: gateway1
@@ -158,4 +150,4 @@ actions:
   - type: CONCLUSION
     title: Conclusion
     markdown: |
-      SQL topic is a game changer.
+      SQL topic is really a game changer!
