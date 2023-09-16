@@ -2,6 +2,7 @@ package io.conduktor.gateway.soak.func;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
@@ -193,6 +194,7 @@ public class ScenarioTest {
         appendTo("Readme.md",
                 format("""
                                 %s
+                                                        
                                 %s
                                                                 
                                 """,
@@ -463,12 +465,11 @@ public class ScenarioTest {
                                 """,
                         kafkaBoostrapServers(clusters, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
-                        properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
-                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms  " + timeout,
-                        action.getGroupId() == null ? "" : " \\\n    --group  " + action.getGroupId()
+                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms " + timeout,
+                        action.getGroupId() == null ? "" : " \\\n    --group " + action.getGroupId()
                 );
             }
             case FAILOVER -> {
@@ -508,6 +509,24 @@ public class ScenarioTest {
                     for (var plugin : plugins.entrySet()) {
                         var pluginName = plugin.getKey();
                         var pluginBody = plugin.getValue();
+
+                        appendTo("Readme.md",
+                                format("""
+                                                
+                                                Creating the interceptor named `%s` of the plugin `%s` using the following payload
+
+                                                ```json
+                                                %s
+                                                ```
+                                                
+                                                Here's how to send it:
+
+                                                """,
+                                        pluginName,
+                                        pluginBody.getPluginClass(),
+                                        new ObjectMapper()
+                                                .enable(SerializationFeature.INDENT_OUTPUT)
+                                                .writeValueAsString(pluginBody)));
 
                         code(scenario, action, id, """
                                         curl \\
@@ -709,6 +728,7 @@ public class ScenarioTest {
         return clusters.get(action.getKafka())
                 .getProperty(BOOTSTRAP_SERVERS);
     }
+
     private String gatewayBoostrapServers(Scenario.Action action) {
         assertGatewayHost(action);
         return scenario.getServices().get(action.getGateway())

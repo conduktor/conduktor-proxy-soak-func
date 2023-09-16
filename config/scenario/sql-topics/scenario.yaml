@@ -1,4 +1,4 @@
-title: Virtual SQL
+title: SQL Topics
 services:
   kafka1:
     properties:
@@ -31,13 +31,17 @@ services:
 actions:
 
   - type: INTRODUCTION
-    title: What is a virtual topic?
+    title: What is a SQL topic?
     markdown: |
-      Conduktor Gateway's virtual topics allow you to create a *virtual* copy of an existing Kafka topic that can then have interceptors applied to it without affecting the original topic.
+      Conduktor Gateway's sql topics allow you to create a *virtual* instance of an existing Kafka topic based on an *sql* request.
+            
+      I may have a topic 'cars' that contains information on cars of all colors, and an application that is only interested in *red* cars. 
       
-      For instance, I may have a topic 'cars' that contains information on cars of all colors, and an application that is only interested in Red cars. 
+      To satisfy this requirement I can create a virtual topic `red-car` which a sql statement satisfies exactly that:
       
-      To satisfy this requirement I can create a virtual topic `red-car` which filters out all but the red car data.
+      ```sql
+      SELECT type, price as money FROM cars WHERE color = 'red'
+      ```
 
   - type: FILE
     title: Review the docker compose environment
@@ -59,6 +63,7 @@ actions:
     name: teamA
 
   - type: CREATE_TOPICS
+    title: Create the `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -66,24 +71,26 @@ actions:
         replicationFactor: 1
         partitions: 1
 
-  - type: LIST_TOPICS
-    kafka: teamA
-    kafkaConfig: teamA-sa.properties
-    assertExists:
-      - cars
-
   - type: PRODUCE
     kafka: teamA
+    title: Produce sample data to our `cars` topic
     kafkaConfig: teamA-sa.properties
     topic: cars
     messages:
       - value: '{"type":"Sports","price":75,"color":"blue"}'
       - value: '{"type":"SUV","price":55,"color":"red"}'
+    markdown: |
+      Produce 2 records to the cars topic: our mock car data for cars.
+      
+      * A blue car
+      * A red car
 
   - type: CONSUME
+    title: Consume the `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: cars
+    maxMessages: 2
     assertSize: 2
     assertions:
       - description: Confirm Sport
@@ -94,16 +101,19 @@ actions:
         value:
           operator: containsIgnoreCase
           expected: 'SUV'
+    markdown: |
+      Let's confirm the 2 records are there by consuming from the `cars` topic.
 
-  - type: CREATE_TOPICS
-    kafka: teamA
-    kafkaConfig: teamA-sa.properties
-    topics:
-      - name: red-cars
-        replicationFactor: 1
-        partitions: 1
+#  - type: CREATE_TOPICS
+#    kafka: teamA
+#    kafkaConfig: teamA-sa.properties
+#    topics:
+#      - name: red-cars
+#        replicationFactor: 1
+#        partitions: 1
 
   - type: ADD_INTERCEPTORS
+    title: Create the sql topic `red-cars`
     gateway: gateway1
     interceptors:
       teamA:
@@ -112,10 +122,13 @@ actions:
           "priority": "100"
           "config": {
             "virtualTopic": "red-cars",
-            "statement": "SELECT type, price as price FROM cars WHERE color = 'red'"
+            "statement": "SELECT type, price as money FROM cars WHERE color = 'red'"
           }
+    markdown: |
+      Let's create the interceptor to filter out the red cars from the `cars` topic.
 
   - type: LIST_INTERCEPTORS
+    title: List the virtual topic interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 1
@@ -123,6 +136,7 @@ actions:
       - red-cars
 
   - type: CONSUME
+    title: Consume from the virtual topic `red-cars`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: red-cars
@@ -136,5 +150,12 @@ actions:
         value:
           operator: containsIgnoreCase
           expected: 'SUV'
+    markdown: |
+      Let's consume from our virtual topic `red-cars`.
+
+      You now see only one car, the red one, please note that its format changed according to our SQL statement's projection.
 
   - type: CONCLUSION
+    title: Conclusion
+    markdown: |
+      SQL topic is a game changer.
