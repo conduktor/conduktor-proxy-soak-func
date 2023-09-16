@@ -53,7 +53,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
-            @JsonSubTypes.Type(value = MarkdownAction.class, name = "MARKDOWN"),
+            @JsonSubTypes.Type(value = FileAction.class, name = "FILE"),
             @JsonSubTypes.Type(value = SuccessAction.class, name = "SUCCESS"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
@@ -82,14 +82,8 @@ public class Scenario {
     }
 
     @Data
-    public static class DockerAction extends Action {
+    public static class DockerAction extends CommandAction {
         public String command;
-        public boolean showOutput = false;
-        public boolean daemon = false;
-        public Integer assertError;
-        public Integer assertExitCode;
-        public List<String> assertOutputContains = new ArrayList<>();
-        public List<String> assertOutputDoesNotContain = new ArrayList<>();
     }
 
 
@@ -220,15 +214,14 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class MarkdownAction extends Action {
-        public String markdown;
+    public static class FileAction extends Action {
+        public String filename;
     }
 
     @Data
     public static class GatewayAction extends Action {
         public String gateway;
     }
-
 
     public static class StepAction extends Action {
     }
@@ -244,14 +237,27 @@ public class Scenario {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ShAction extends KafkaAction {
-        public String gateway;
-        public String script;
+    public static abstract class CommandAction extends KafkaAction {
         public boolean showOutput = false;
+        public boolean isDaemon = false;
         public Integer assertError;
         public Integer assertExitCode;
         public List<String> assertOutputContains = new ArrayList<>();
         public List<String> assertOutputDoesNotContain = new ArrayList<>();
+        abstract public String getCommand();
+    }
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ShAction extends CommandAction {
+        public String gateway;
+        public String script;
+
+        @Override
+        public String getCommand() {
+            return script;
+        }
+
     }
 
 
@@ -292,8 +298,7 @@ public class Scenario {
     public enum ActionType {
         STEP,
         SUCCESS,
-        DOCUMENTATION,
-        MARKDOWN,
+        FILE,
         CREATE_TOPICS,
         CREATE_VIRTUAL_CLUSTERS,
         LIST_TOPICS,

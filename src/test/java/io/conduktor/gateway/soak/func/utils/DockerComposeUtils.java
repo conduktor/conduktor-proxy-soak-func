@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.serializer.AnchorGenerator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +30,9 @@ public class DockerComposeUtils {
     public static String getUpdatedDockerCompose(Scenario scenario) {
         DumperOptions dumperOptions = new DumperOptions();
         dumperOptions.setPrettyFlow(true);
+        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        dumperOptions.setIndent(2);
+
         var yaml = new Yaml(dumperOptions);
 
         var composeConfig = yaml.load(ScenarioTest.class.getResourceAsStream(DOCKER_COMPOSE_FILE_PATH));

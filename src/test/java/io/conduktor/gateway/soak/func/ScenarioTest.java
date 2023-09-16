@@ -21,6 +21,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.logging.log4j.core.util.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -51,6 +52,7 @@ import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdated
 import static io.restassured.RestAssured.given;
 import static java.lang.String.format;
 import static java.nio.file.Files.createDirectory;
+import static org.apache.commons.io.FileUtils.readFileToString;
 import static org.apache.commons.io.FileUtils.writeStringToFile;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 import static org.apache.http.HttpStatus.SC_CREATED;
@@ -197,15 +199,31 @@ public class ScenarioTest {
             case STEP -> {
                 var action = ((Scenario.StepAction) _action);
             }
-            case DOCUMENTATION -> {
-                var action = ((Scenario.DocumentationAction) _action);
+            case FILE -> {
+                var action = ((Scenario.FileAction) _action);
+                appendTo("/Readme.md",
+                        format("""
+                                        ```sh
+                                        cat %s
+                                        ```
+                                                                
+                                        <details>
+                                          <summary>Results</summary>
+                                          
+                                        ```%s
+                                        %s
+                                        ```
+                                          
+                                        </details>
+                                                            
+                                        """,
+                                action.filename,
+                                FileUtils.getFileExtension(new File(action.filename)),
+                                trimToEmpty(readFileToString(new File(executionFolder.getFileName() + "/" + action.filename), Charset.defaultCharset())
+                                )));
             }
             case SUCCESS -> {
                 var action = ((Scenario.SuccessAction) _action);
-            }
-            case MARKDOWN -> {
-                var action = ((Scenario.MarkdownAction) _action);
-                log.info(action.getMarkdown());
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
@@ -236,11 +254,15 @@ public class ScenarioTest {
                                 sasl.mechanism=PLAIN
                                 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='$token';
                                 \"\"\" > %s-%s.properties
+                                                                
+                                cat %s-%s.properties
                                 """,
                         gateway,
                         action.getName(),
                         action.getServiceAccount(),
                         gatewayProperties.get("bootstrap.servers"),
+                        action.getServiceAccount(),
+                        action.getName(),
                         action.getServiceAccount(),
                         action.getName(),
                         action.getServiceAccount());
@@ -366,7 +388,7 @@ public class ScenarioTest {
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(Collectors.joining("\n"));
-                        code(scenario, action, id, command);
+                        code(scenario, action, id, StringUtils.removeEnd(command, "\n"));
 
 
                         if (action.getAssertError() != null) {
@@ -444,8 +466,8 @@ public class ScenarioTest {
                         properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
-                        action.getMaxMessages() == null ? "" : "--max-messages " + maxRecords,
-                        action.getAssertSize() == null ? "" : "--timeout-ms " + timeout
+                        action.getMaxMessages() == null ? "" : "--max-messages " + maxRecords + " \\\n    ",
+                        action.getAssertSize() == null ? "" : "--timeout-ms  " + timeout
                 );
             }
             case FAILOVER -> {
@@ -550,7 +572,11 @@ public class ScenarioTest {
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
                 processBuilder.directory(executionFolder.toFile());
-                processBuilder.command("sh", "-c", action.getCommand());
+                if (action.isDaemon()) {
+                    processBuilder.command("sh", "-c", "nohup " + ((Scenario.CommandAction) action).getCommand() + "&");
+                } else {
+                    processBuilder.command("sh", "-c", ((Scenario.CommandAction) action).getCommand());
+                }
                 processBuilder.redirectErrorStream(true);
                 Process process = processBuilder.start();
 
@@ -563,28 +589,27 @@ public class ScenarioTest {
                     if (!action.isDaemon()) {
                         int exitCode = process.waitFor();
 
-                        if (action.showOutput) {
+                        if (action.isShowOutput()) {
                             log.info(ret);
                         }
-                        if (action.assertExitCode != null) {
+                        if (action.getAssertExitCode() != null) {
                             assertThat(exitCode)
-                                    .isEqualTo(action.assertExitCode);
+                                    .isEqualTo(action.getAssertExitCode());
                         }
-                        if (!action.assertOutputContains.isEmpty()) {
+                        if (!action.getAssertOutputContains().isEmpty()) {
                             assertThat(ret)
-                                    .contains(action.assertOutputContains);
+                                    .contains(action.getAssertOutputContains());
                         }
-                        if (!action.assertOutputDoesNotContain.isEmpty()) {
+                        if (!action.getAssertOutputDoesNotContain().isEmpty()) {
                             assertThat(ret)
-                                    .doesNotContain(action.assertOutputDoesNotContain);
+                                    .doesNotContain(action.getAssertOutputDoesNotContain());
                         }
                     }
                 }
+                code(scenario, action, id,
+                        "%s",
+                        ((Scenario.CommandAction) action).getCommand());
 
-                code(scenario, action, id, """
-                                %s
-                                """,
-                        action.getCommand());
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
@@ -604,7 +629,7 @@ public class ScenarioTest {
                     expandedScript = StringUtils.replace(expandedScript, "${GATEWAY_HOST}", gatewayProperties.get("gateway.host"));
                 }
 
-                code(scenario, action, id, expandedScript);
+                code(scenario, action, id, StringUtils.removeEnd(expandedScript, "\n"));
                 File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
                 writeStringToFile(scriptFile, addShHeader(id, action) + action.getScript(), Charset.defaultCharset());
 
@@ -901,7 +926,7 @@ public class ScenarioTest {
                                     asciinema/%s.asciinema
                                 svg-term \\
                                     --in asciinema/%s.asciinema \\
-                                    --out asciinema/%s.svg \\
+                                    --out images/%s.svg \\
                                     --window true
                                 agg \\
                                     --theme "asciinema" \\
@@ -917,18 +942,21 @@ public class ScenarioTest {
                         step,
                         step,
                         step,
+                        step,
+                        step,
                         step));
 
 
         appendTo("/Readme.md",
                 format("""
                                 ```sh
-                                %s```
+                                %s
+                                ```
                                                         
                                 <details>
                                   <summary>Results</summary>
                                   
-                                  ![%s](images/%s.gif)
+                                  ![%s](images/%s.svg)
                                   
                                 </details>
                                                     
