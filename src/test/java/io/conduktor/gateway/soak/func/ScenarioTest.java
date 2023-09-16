@@ -81,7 +81,7 @@ public class ScenarioTest {
         processBuilder.command("bash", "-c", "docker rm -f $(docker ps -aq)");
         processBuilder.start().waitFor();
 
-        executionFolder = createDirectory(Paths.get(System.getProperty("user.dir"), UUID.randomUUID().toString())).toFile();
+        executionFolder = createDirectory(Paths.get("target", UUID.randomUUID().toString())).toFile();
     }
 
     private static boolean isScenario(File file) {
@@ -126,12 +126,12 @@ public class ScenarioTest {
         var actions = scenario.getActions();
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/asciinema"));
         createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/images"));
-        createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/steps"));
 
         appendTo(
                 "docker-compose.yaml",
                 getUpdatedDockerCompose(scenario));
-        appendTo("record.sh", """
+        appendTo("run.sh", "");
+        appendTo("type.sh", """
                 echo 'function execute() {
                     file=$1
                     chars=$(cat $file| wc -c)
@@ -148,9 +148,9 @@ public class ScenarioTest {
                 }
                                 
                 execute $1
-                ' > ./execute.sh
-                chmod +x execute.sh
                 """);
+        new File(scenarioFolder.getAbsolutePath() + "/type.sh").setExecutable(true);
+        new File(scenarioFolder.getAbsolutePath() + "/run.sh").setExecutable(true);
         runScenarioSteps(scenario, actions);
     }
 
@@ -463,16 +463,15 @@ public class ScenarioTest {
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
                                     --group %s \\
-                                    --topic %s%s \\
-                                    %s%s
+                                    --topic %s%s%s%s
                                 """,
                         clusters.get(action.getKafka()).getProperty("bootstrap.servers"),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         properties.getProperty("group.id"),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
-                        action.getMaxMessages() == null ? "" : "--max-messages " + maxRecords + " \\\n    ",
-                        action.getAssertSize() == null ? "" : "--timeout-ms  " + timeout
+                        action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
+                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms  " + timeout
                 );
             }
             case FAILOVER -> {
@@ -915,8 +914,8 @@ public class ScenarioTest {
     private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
         String stepTitle = "Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle());
 
-        appendTo("run.sh", "echo '" + stepTitle + "'\n" + format(format, args) + "\n");
         String step = "step-" + id + "-" + action.getType();
+        appendTo("run.sh", "echo '" + stepTitle + "'\nsh " + step + "\n\n");
         appendTo(step + ".sh", format(format, args));
 
         // svg-term ?
