@@ -1,4 +1,4 @@
-title: ClusterSwitching
+title: Cluster Switching
 services:
   kafka1:
     environment:
@@ -220,6 +220,10 @@ actions:
     gateway: gateway1
     name: teamA
 
+  - type: FILE
+    title: Review the kafka properties to connect to teamA
+    filename: teamA-sa.properties
+
   - type: CREATE_TOPICS
     title: Create topic users
     kafka: teamA
@@ -333,6 +337,11 @@ actions:
         value:
           operator: containsIgnoreCase
           expected: 'thibaut'
+
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
 
   - type: CONCLUSION
     title: Conclusion

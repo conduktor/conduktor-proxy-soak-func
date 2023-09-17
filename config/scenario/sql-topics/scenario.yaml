@@ -63,6 +63,10 @@ actions:
     gateway: gateway1
     name: teamA
 
+  - type: FILE
+    title: Review the kafka properties to connect to teamA
+    filename: teamA-sa.properties
+
   - type: CREATE_TOPICS
     title: Create the `cars` topic
     kafka: teamA
@@ -147,6 +151,11 @@ actions:
       Let's consume from our virtual topic `red-cars`.
 
       You now see only one car, the red one, please note that its format changed according to our SQL statement's projection.
+
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
 
   - type: CONCLUSION
     title: Conclusion

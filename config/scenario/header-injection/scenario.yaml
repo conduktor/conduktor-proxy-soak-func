@@ -57,6 +57,10 @@ actions:
     gateway: gateway1
     name: teamA
 
+  - type: FILE
+    title: Review the kafka properties to connect to teamA
+    filename: teamA-sa.properties
+
   - type: CREATE_TOPICS
     title: Create the `users` topic
     kafka: teamA

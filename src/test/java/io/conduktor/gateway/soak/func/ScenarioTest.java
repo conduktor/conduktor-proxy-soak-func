@@ -15,13 +15,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
@@ -36,7 +36,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -49,7 +49,6 @@ import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdated
 import static io.restassured.RestAssured.given;
 import static java.lang.String.format;
 import static java.nio.charset.Charset.defaultCharset;
-import static java.nio.file.Files.createDirectory;
 import static org.apache.commons.io.FileUtils.*;
 import static org.apache.commons.io.FilenameUtils.getExtension;
 import static org.apache.commons.lang3.StringUtils.*;
@@ -67,6 +66,9 @@ public class ScenarioTest {
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
     public static final String GATEWAY_HOST = "gateway.host";
     public static final String BOOTSTRAP_SERVERS = "bootstrap.servers";
+
+    static final String currentDate = new SimpleDateFormat("yyyy.MM.dd-HH:mm:ss").format(Calendar.getInstance().getTime());
+
     public static final String TYPE_SH = """
             function execute() {
                 file=$1
@@ -124,10 +126,7 @@ public class ScenarioTest {
             done
             """;
 
-    private static boolean cleanupAfterTest = false;
-
     private static File executionFolder;
-    private static File scenarioFolder;
 
 
     @BeforeAll
@@ -135,8 +134,6 @@ public class ScenarioTest {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command("bash", "-c", "docker rm -f $(docker ps -aq)");
         processBuilder.start().waitFor();
-
-        executionFolder = createDirectory(Paths.get("target", UUID.randomUUID().toString())).toFile();
     }
 
     private static boolean isScenario(File file) {
@@ -158,12 +155,10 @@ public class ScenarioTest {
         var scenarioYamlConfigReader = YamlConfigReader.forType(Scenario.class);
         List<Arguments> scenarios = new ArrayList<>();
         for (var scenarioFolder : scenerioFolders) {
-            File executionFolder = new File(ScenarioTest.executionFolder.getPath() + "/" + scenarioFolder.getName());
-            copyDirectory(scenarioFolder, executionFolder);
             for (var file : scenarioFolder.listFiles()) {
                 if (isScenario(file)) {
                     Scenario scenario = scenarioYamlConfigReader.readYamlInResources(file.getPath());
-                    scenarios.add(Arguments.of(executionFolder, scenario));
+                    scenarios.add(Arguments.of(scenario, scenarioFolder));
                 }
             }
         }
@@ -172,16 +167,16 @@ public class ScenarioTest {
 
     @ParameterizedTest
     @MethodSource("sourceForScenario")
-    public void testScenario(File folder, Scenario scenario) throws Exception {
-        scenarioFolder = folder;
-        log.info("Execution folder {}", scenarioFolder.getAbsolutePath());
+    public void testScenario(Scenario scenario, File scenarioFolder) throws Exception {
+        executionFolder = createDirectory("target", currentDate, scenarioFolder.getName());
 
+        log.info("Start to test: {} at {}", scenario.getTitle(), executionFolder.getAbsolutePath());
 
-        log.info("Start to test: {}", scenario.getTitle());
+        copyDirectory(scenarioFolder, executionFolder);
         var actions = scenario.getActions();
-        createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/asciinema"));
-        createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/images"));
-        createDirectory(Path.of(scenarioFolder.getAbsolutePath(), "/output"));
+        createDirectory(executionFolder.getAbsolutePath(), "/asciinema");
+        createDirectory(executionFolder.getAbsolutePath(), "/images");
+        createDirectory(executionFolder.getAbsolutePath(), "/output");
 
         appendTo("docker-compose.yaml", getUpdatedDockerCompose(scenario));
         appendTo("run.sh", "");
@@ -192,15 +187,23 @@ public class ScenarioTest {
 
         log.info("Re-recording the scenario to include bash commands output in Readme");
         ProcessBuilder commandOutput = new ProcessBuilder();
-        commandOutput.directory(scenarioFolder);
+        commandOutput.directory(executionFolder);
         commandOutput.command("sh", "record-output.sh");
         commandOutput.start().waitFor();
 
         log.info("Recording one more time with asciinema to be fancy");
         ProcessBuilder recording = new ProcessBuilder();
-        recording.directory(scenarioFolder);
+        recording.directory(executionFolder);
         recording.command("sh", "record-asciinema.sh");
         recording.start().waitFor();
+
+        log.info("Finished to test: {} successfully", scenario.getTitle());
+    }
+
+    File createDirectory(String first, String... more) {
+        File file = Path.of(first, more).toFile();
+        file.mkdirs();
+        return file;
     }
 
     private Scenario scenario;
@@ -213,26 +216,6 @@ public class ScenarioTest {
             for (var _action : actions) {
                 step(clusters, clientFactory, ++id, _action);
             }
-        }
-    }
-
-    @AfterAll
-    public static void cleanup() throws IOException, InterruptedException {
-        if (cleanupAfterTest) {
-            ProcessBuilder processBuilder = new ProcessBuilder();
-            processBuilder.directory(scenarioFolder);
-            processBuilder.command("docker", "compose", "down", "--volume");
-            processBuilder.redirectErrorStream(true);
-            Process process = processBuilder.start();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String ret = "";
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    ret = ret + line + "\n";
-                    System.out.println(line);
-                }
-            }
-            process.waitFor();
         }
     }
 
@@ -256,13 +239,14 @@ public class ScenarioTest {
             }
             case FILE -> {
                 var action = ((Scenario.FileAction) _action);
+                String fileContent = readFileToString(new File(executionFolder.getAbsoluteFile() + "/" + action.filename), defaultCharset());
                 appendTo("/Readme.md",
                         format("""
                                         ```sh
                                         cat %s
                                         ```
 
-                                        <details>
+                                        <details%s>
                                           <summary>File content</summary>
 
                                         ```%s
@@ -273,8 +257,9 @@ public class ScenarioTest {
 
                                         """,
                                 action.filename,
+                                StringUtils.countMatches(fileContent, "\n") < 10 ? " on" : "",
                                 getExtension(action.filename),
-                                trimToEmpty(readFileToString(new File(scenarioFolder.getAbsoluteFile() + "/" + action.filename), defaultCharset()))
+                                trimToEmpty(fileContent)
                         ));
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
@@ -291,7 +276,7 @@ public class ScenarioTest {
                 properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
                 clusters.put(action.getName(), properties);
 
-                savePropertiesToFile(new File(scenarioFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
+                savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
                 code(scenario, action, id, """
                                 token=$(curl \\
@@ -307,15 +292,11 @@ public class ScenarioTest {
                                 sasl.mechanism=PLAIN
                                 sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='$token';
                                 \"\"\" > %s-%s.properties
-
-                                cat %s-%s.properties
                                 """,
                         gatewayHost,
                         action.getName(),
                         action.getServiceAccount(),
                         gatewayBootstrapServers,
-                        action.getServiceAccount(),
-                        action.getName(),
                         action.getServiceAccount(),
                         action.getName(),
                         action.getServiceAccount());
@@ -638,7 +619,7 @@ public class ScenarioTest {
                 var action = ((Scenario.DockerAction) _action);
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
-                processBuilder.directory(scenarioFolder);
+                processBuilder.directory(executionFolder);
                 if (action.isDaemon()) {
                     processBuilder.command("sh", "-c", "nohup " + ((Scenario.CommandAction) action).getCommand() + "&");
                 } else {
@@ -696,12 +677,12 @@ public class ScenarioTest {
                 }
 
                 code(scenario, action, id, removeEnd(expandedScript, "\n"));
-                File scriptFile = new File(scenarioFolder + "/step-" + id + ".sh");
+                File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
                 writeStringToFile(scriptFile, ("echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle()) + "'\n") + action.getScript(), defaultCharset());
 
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
-                processBuilder.directory(scenarioFolder);
+                processBuilder.directory(executionFolder);
                 processBuilder.command("sh", scriptFile.getAbsolutePath());
                 processBuilder.redirectErrorStream(true);
                 processBuilder.environment().putAll(env);
@@ -1040,7 +1021,7 @@ public class ScenarioTest {
     }
 
     private static void appendTo(String filename, String code) throws IOException {
-        File file = new File(scenarioFolder + "/" + filename);
+        File file = new File(executionFolder + "/" + filename);
         if ("sh".equals(getExtension(file.getName())) && !code.startsWith("#!/bin/")) {
             if ((file.exists() && !readFileToString(file, defaultCharset()).startsWith("#!/bin/"))) {
                 code = "#!/bin/sh\n" + code;
