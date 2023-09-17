@@ -2,10 +2,7 @@ package io.conduktor.gateway.soak.func.config;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -59,6 +56,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
             @JsonSubTypes.Type(value = AddInterceptorAction.class, name = "ADD_INTERCEPTORS"),
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
+            @JsonSubTypes.Type(value = AddTopicMappingAction.class, name = "ADD_TOPIC_MAPPING"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = FileAction.class, name = "FILE"),
@@ -142,6 +140,7 @@ public class Scenario {
             private String name;
             private int partitions;
             private int replicationFactor;
+            private List<String> config = new ArrayList<>();
         }
 
         private LinkedHashMap<String, String> properties;
@@ -209,6 +208,24 @@ public class Scenario {
     @EqualsAndHashCode(callSuper = true)
     public static class RemoveInterceptorAction extends GatewayAction {
         private List<String> names = new ArrayList<>();
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class AddTopicMappingAction extends GatewayAction {
+        private String topicPattern;
+        private String physicalTopicName;
+
+        @Data
+        @Builder
+        public static class TopicMapping {
+            public String physicalTopicName;
+            public boolean readOnly = false;
+            public boolean concentrated = true;
+        }
+
     }
 
     @Data
@@ -328,6 +345,7 @@ public class Scenario {
         FILE,
         CREATE_TOPICS,
         CREATE_VIRTUAL_CLUSTERS,
+        ADD_TOPIC_MAPPING,
         LIST_TOPICS,
         DESCRIBE_TOPICS,
         PRODUCE,

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
+import io.conduktor.gateway.soak.func.config.Scenario.AddTopicMappingAction.TopicMapping;
 import io.conduktor.gateway.soak.func.config.Scenario.DescribeTopicsAction.DescribeTopicsActionAssertions;
 import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
@@ -24,17 +25,19 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.yaml.snakeyaml.util.UriEncoder;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -74,7 +77,7 @@ public class ScenarioTest {
               local RESET="\\033[0m"
               local file=$1
               local chars=$(cat $file| wc -c)
-          
+                      
               printf "${GREEN}"
               if [ "$chars" -lt 70 ] ; then
                   cat $file | pv -qL 30
@@ -88,10 +91,10 @@ public class ScenarioTest {
                   cat $file | pv -qL 400
               fi
               echo "${RESET}"
-          
+                      
               . $file
             }
-          
+                      
             type_and_execute $1
             """;
     public static final String RECORD_ASCIINEMA_SH = """
@@ -276,12 +279,70 @@ public class ScenarioTest {
                                 trimToEmpty(fileContent)
                         ));
             }
+            case ADD_TOPIC_MAPPING -> {
+                var action = ((Scenario.AddTopicMappingAction) _action);
+
+                String gateway = gatewayHost(action);
+                String vcluster = vCluster(action);
+                TopicMapping topicMapping = TopicMapping
+                        .builder()
+                        .physicalTopicName(action.getPhysicalTopicName())
+                        .build();
+                String topicPattern = uriEncode(action.getTopicPattern());
+
+                log.debug("Adding topic mapping in " + vcluster + " for " + topicPattern + " with " + topicMapping);
+
+                given()
+                        .baseUri(gateway + "/admin/vclusters/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .contentType(ContentType.JSON)
+                        .body(topicMapping).
+                        when()
+                        .post("/vcluster/{vcluster}/topics/{topicPattern}", vcluster, topicPattern).
+                        then()
+                        .statusCode(SC_OK);
+
+                code(scenario, action, id, """
+                                      curl \\
+                                        --silent \\
+                                        --user "admin:conduktor" \\
+                                        --request POST '%s/admin/vclusters/v1/vcluster/%s/topics/%s' \\
+                                        --header 'Content-Type: application/json' \\
+                                        --data-raw '{
+                                            "physicalTopicName": "%s",
+                                            "readOnly": false,
+                                            "concentrated": true
+                                          }' | jq
+                                                        
+                                """,
+                        gateway,
+                        vcluster,
+                        topicPattern,
+                        action.getPhysicalTopicName());
+            }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
                 String gatewayHost = gatewayHost(action);
                 String gatewayBootstrapServers = gatewayBoostrapServers(action);
 
-                VClusterCreateResponse response = createVirtualCluster(gatewayHost, action.getName(), action.getServiceAccount());
+
+                String vcluster = action.getName();
+                String username = action.getServiceAccount();
+                log.debug("Creating virtual cluster " + vcluster + " with service account " + username);
+                VClusterCreateResponse response = given()
+                        .baseUri(gatewayHost + "/admin/vclusters/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .contentType(ContentType.JSON)
+                        .body(new VClusterCreateRequest()).
+                        when()
+                        .post("/vcluster/{vcluster}/username/{username}", vcluster, username).
+                        then()
+                        .statusCode(SC_OK)
+                        .extract()
+                        .response()
+                        .as(VClusterCreateResponse.class);
 
                 Properties properties = clusters.getOrDefault(action.getName(), new Properties());
                 properties.put(BOOTSTRAP_SERVERS, gatewayBootstrapServers);
@@ -593,7 +654,15 @@ public class ScenarioTest {
                 String vcluster = vCluster(action);
 
                 for (String name : action.getNames()) {
-                    removePlugin(gatewayHost, vcluster, name);
+                    given()
+                            .baseUri(gatewayHost + "/admin/interceptors/v1")
+                            .auth()
+                            .basic(ADMIN_USER, ADMIN_PASSWORD)
+                            .contentType(ContentType.JSON).
+                            when()
+                            .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
+                            then()
+                            .statusCode(SC_NO_CONTENT);
                     code(scenario, action, id, """
                                     curl \\
                                         --silent \\
@@ -610,7 +679,19 @@ public class ScenarioTest {
                 var action = ((Scenario.ListInterceptorAction) _action);
                 String gatewayHost = gatewayHost(action);
                 String vCluster = vCluster(action);
-                TenantInterceptorsResponse response = getPlugins(gatewayHost, action.vcluster);
+
+                TenantInterceptorsResponse response = given()
+                        .baseUri(gatewayHost + "/admin/interceptors/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .contentType(ContentType.JSON).
+                        when()
+                        .get("/vcluster/{vcluster}/interceptors", action.vcluster).
+                        then()
+                        .statusCode(SC_OK)
+                        .extract()
+                        .response()
+                        .as(TenantInterceptorsResponse.class);
 
                 if (Objects.nonNull(action.assertSize)) {
                     assertThat(response.interceptors)
@@ -793,11 +874,16 @@ public class ScenarioTest {
         if (isBlank(action.getGateway())) {
             throw new RuntimeException(action.simpleMessage() + "gateway is not specified");
         }
-        if (!scenario.getServices().containsKey(action.getGateway())) {
+        Scenario.Service service = scenario.getServices().get(action.getGateway());
+        if (service == null) {
             throw new RuntimeException(action.simpleMessage() + "gateway " + action.getGateway() + " is not known");
         }
-        if (!scenario.getServices().get(action.getGateway()).getProperties().containsKey(GATEWAY_HOST)) {
+        String gatewayHost = service.getProperties().get(GATEWAY_HOST);
+        if (gatewayHost == null) {
             throw new RuntimeException(action.simpleMessage() + "gateway " + action.getGateway() + " has not the " + GATEWAY_HOST + " property");
+        }
+        if (!gatewayHost.startsWith("http")) {
+            throw new RuntimeException(action.simpleMessage() + "gateway " + action.getGateway() + " has not the " + GATEWAY_HOST + " property should start with 'http', it is " + gatewayHost);
         }
     }
 
@@ -880,56 +966,11 @@ public class ScenarioTest {
         public String token;
     }
 
-    private static VClusterCreateResponse createVirtualCluster(String gateway, String vcluster, String username) {
-        log.debug("Creating virtual cluster " + vcluster);
-        return given()
-                .baseUri(gateway + "/admin/vclusters/v1")
-                .auth()
-                .basic(ADMIN_USER, ADMIN_PASSWORD)
-                .contentType(ContentType.JSON)
-                .body(new VClusterCreateRequest()).
-                when()
-                .post("/vcluster/{vcluster}/username/{username}", vcluster, username).
-                then()
-                .statusCode(SC_OK)
-                .extract()
-                .response()
-                .as(VClusterCreateResponse.class);
-    }
-
-    private static void removePlugin(String gateway, String vcluster, String name) {
-        given()
-                .baseUri(gateway + "/admin/interceptors/v1")
-                .auth()
-                .basic(ADMIN_USER, ADMIN_PASSWORD)
-                .contentType(ContentType.JSON).
-                when()
-                .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
-                then()
-                .statusCode(SC_NO_CONTENT);
-    }
-
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static final class TenantInterceptorsResponse {
         List<PluginResponse> interceptors;
-    }
-
-    private static TenantInterceptorsResponse getPlugins(String gateway, String vcluster) {
-        return given()
-                .baseUri(gateway + "/admin/interceptors/v1")
-                .auth()
-                .basic(ADMIN_USER, ADMIN_PASSWORD)
-                .contentType(ContentType.JSON).
-                when()
-                .get("/vcluster/{vcluster}/interceptors", vcluster).
-                then()
-                .statusCode(SC_OK)
-                .extract()
-                .response()
-                .as(TenantInterceptorsResponse.class);
-
     }
 
     private static void assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
@@ -1064,5 +1105,11 @@ public class ScenarioTest {
         if ("sh".equals(getExtension(file.getName()))) {
             file.setExecutable(true);
         }
+    }
+
+
+    public static String uriEncode(String s) throws Exception {
+        return URLEncoder.encode(s, "UTF-8").replace("*", "%2A");
+
     }
 }
