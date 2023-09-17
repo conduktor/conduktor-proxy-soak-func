@@ -73,7 +73,7 @@ public class Scenario {
     @AllArgsConstructor
     public static class Action {
         private ActionType type;
-        private int headerLevel = 2;
+        private Integer headerLevel;
         private String title = "";
         private String markdown = "";
         public String gateway;
@@ -84,6 +84,13 @@ public class Scenario {
 
         public String markdownHeader() {
             return StringUtils.repeat("#", getHeaderLevel()) + " " + trimToEmpty(getTitle());
+        }
+
+        public int getHeaderLevel() {
+            if (headerLevel != null) {
+                return headerLevel;
+            }
+            return getTitle().toLowerCase().startsWith("review") ? 3 : 2;
         }
     }
 
