@@ -162,6 +162,41 @@ actions:
           - operator: doesNotContainIgnoringCase
             expected: 'my own value'
 
+  - type: REMOVE_INTERCEPTORS
+    title: Delete the `remove-headers` interceptor
+    gateway: gateway1
+    vcluster: teamA
+    names:
+      - remove-headers
+    markdown: |
+      Let's delete the interceptor `remove-headers` so we can access all our headers again
+
+  - type: CONSUME
+    title: Verify tom and florent have `X-MY-KEY` back
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users
+    showHeaders: true
+    maxMessages: 2
+    assertSize: 2
+    assertions:
+      - description: Confirm tom has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'tom'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+      - description: Confirm florent has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'florent'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+
   - type: DOCKER
     title: Cleanup the docker environment
     command: docker compose down -v

@@ -208,7 +208,6 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class RemoveInterceptorAction extends GatewayAction {
-        public String vcluster;
         private List<String> names = new ArrayList<>();
     }
 
@@ -245,6 +244,7 @@ public class Scenario {
     @Data
     public static class GatewayAction extends Action {
         public String gateway;
+        public String vcluster;
     }
 
     public static class StepAction extends Action {

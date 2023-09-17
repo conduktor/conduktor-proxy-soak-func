@@ -52,8 +52,7 @@ import static java.nio.charset.Charset.defaultCharset;
 import static org.apache.commons.io.FileUtils.*;
 import static org.apache.commons.io.FilenameUtils.getExtension;
 import static org.apache.commons.lang3.StringUtils.*;
-import static org.apache.http.HttpStatus.SC_CREATED;
-import static org.apache.http.HttpStatus.SC_OK;
+import static org.apache.http.HttpStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
@@ -70,42 +69,58 @@ public class ScenarioTest {
     static final String currentDate = new SimpleDateFormat("yyyy.MM.dd-HH:mm:ss").format(Calendar.getInstance().getTime());
 
     public static final String TYPE_SH = """
-            function execute() {
-                file=$1
-                chars=$(cat $file| wc -c)
-                if [ "$chars" -lt 100 ] ; then
-                    cat $file | pv -qL 50
-                elif [ "$chars" -lt 250 ] ; then
-                    cat $file | pv -qL 100
-                elif [ "$chars" -lt 500 ] ; then
-                    cat $file | pv -qL 200
-                else
-                    cat $file | pv -qL 400
-                fi
-                . $file
+            function type_and_execute() {
+              local GREEN="\\033[0;32m"
+              local RESET="\\033[0m"
+              local file=$1
+              local chars=$(cat $file| wc -c)
+          
+              printf "${GREEN}"
+              if [ "$chars" -lt 70 ] ; then
+                  cat $file | pv -qL 30
+              elif [ "$chars" -lt 100 ] ; then
+                  cat $file | pv -qL 50
+              elif [ "$chars" -lt 250 ] ; then
+                  cat $file | pv -qL 100
+              elif [ "$chars" -lt 500 ] ; then
+                  cat $file | pv -qL 200
+              else
+                  cat $file | pv -qL 400
+              fi
+              echo "${RESET}"
+          
+              . $file
             }
-
-            execute $1
+          
+            type_and_execute $1
             """;
     public static final String RECORD_ASCIINEMA_SH = """
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing asciinema for $stepSh"
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
-                
+                rows=20
+
                 asciinema rec \\
                   --title "$step" \\
                   --idle-time-limit 2 \\
-                  --cols 140 --rows 20 \\
+                  --cols 140 --rows $rows \\
                   --command "sh type.sh $step.sh" \\
                   asciinema/$step.asciinema
+
+                asciinemaLines=$(asciinema play -s 1000 asciinema/$step.asciinema | wc -l)
+                if [ $asciinemaLines -lt 20 ] ; then
+                  rows=$asciinemaLines
+                fi
+
                 svg-term \\
                   --in asciinema/$step.asciinema \\
                   --out images/$step.svg \\
+                  --height $rows \\
                   --window true
+
                 agg \\
                   --theme "asciinema" \\
-                  --last-frame-duration 1 \\
-                  --no-loop \\
+                  --last-frame-duration 5 \\
                   asciinema/$step.asciinema \\
                   images/$step.gif
             done
@@ -113,15 +128,14 @@ public class ScenarioTest {
     public static final String RECORD_COMMAND_SH = """
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing $stepSh"
-                stepTxt=$(echo "$stepSh" | sed "s/.sh$/.txt/" )
-                stepOutputTag=$(echo "$stepSh" | sed "s/.sh$/-OUTPUT/" )
-                sh -x $stepSh > output/$stepOutputTag.txt 2>&1
+                step=$(echo "$stepSh" | sed "s/.sh$//" )
+                sh -x $stepSh > output/$step.txt 2>&1
 
                 awk '
-                  BEGIN { content = ""; tag = "'$stepOutputTag'" }
+                  BEGIN { content = ""; tag = "'$step-OUTPUT'" }
                   FNR == NR { content = content $0 ORS; next }
                   { gsub(tag, content); print }
-                ' output/$stepOutputTag.txt Readme.md > temp.txt && mv temp.txt Readme.md
+                ' output/$step.txt Readme.md > temp.txt && mv temp.txt Readme.md
 
             done
             """;
@@ -576,25 +590,26 @@ public class ScenarioTest {
             case REMOVE_INTERCEPTORS -> {
                 var action = ((Scenario.RemoveInterceptorAction) _action);
                 String gatewayHost = gatewayHost(action);
+                String vcluster = vCluster(action);
 
                 for (String name : action.getNames()) {
-                    removePlugin(gatewayHost, action.vcluster, name);
+                    removePlugin(gatewayHost, vcluster, name);
                     code(scenario, action, id, """
                                     curl \\
                                         --silent \\
-                                        --request POST "%s/admin/vclusters/v1/vcluster/%s/interceptor/%s" \\
+                                        --request DELETE "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
                                         --user 'admin:conduktor' \\
-                                        --header 'Content-Type: application/json' \\
-                                        --data-raw '%s' | jq
+                                        --header 'Content-Type: application/json' | jq
                                     """,
                             gatewayHost,
+                            vcluster,
                             name);
                 }
             }
             case LIST_INTERCEPTORS -> {
                 var action = ((Scenario.ListInterceptorAction) _action);
                 String gatewayHost = gatewayHost(action);
-
+                String vCluster = vCluster(action);
                 TenantInterceptorsResponse response = getPlugins(gatewayHost, action.vcluster);
 
                 if (Objects.nonNull(action.assertSize)) {
@@ -613,7 +628,7 @@ public class ScenarioTest {
                                     --header 'Content-Type: application/json' | jq
                                 """,
                         gatewayHost,
-                        action.vcluster);
+                        vCluster);
             }
             case DOCKER -> {
                 var action = ((Scenario.DockerAction) _action);
@@ -743,6 +758,14 @@ public class ScenarioTest {
         return scenario.getServices().get(action.getGateway())
                 .getProperties()
                 .get(GATEWAY_HOST);
+    }
+
+    private String vCluster(Scenario.GatewayAction action) {
+        assertGatewayHost(action);
+        if (isBlank(action.vcluster)) {
+            throw new RuntimeException(action.simpleMessage() + "gateway has no vcluster specified");
+        }
+        return action.vcluster;
     }
 
     private String kafkaBoostrapServers(Map<String, Properties> clusters, Scenario.KafkaAction action) {
@@ -883,7 +906,7 @@ public class ScenarioTest {
                 when()
                 .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
                 then()
-                .statusCode(SC_OK);
+                .statusCode(SC_NO_CONTENT);
     }
 
     @Data
@@ -1003,7 +1026,7 @@ public class ScenarioTest {
                                 ```
 
                                 <details>
-                                  <summary>*Realtime* command output</summary>
+                                  <summary>Realtime command output</summary>
 
                                   ![%s](images/%s.gif)
 
