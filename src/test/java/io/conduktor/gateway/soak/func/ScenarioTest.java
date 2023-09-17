@@ -313,7 +313,6 @@ public class ScenarioTest {
                                             "readOnly": false,
                                             "concentrated": true
                                           }' | jq
-                                                        
                                 """,
                         gateway,
                         vcluster,
@@ -412,7 +411,6 @@ public class ScenarioTest {
                                         --partitions %s%s \\
                                         --create --if-not-exists \\
                                         --topic %s
-
                                     """,
                             kafkaBoostrapServers(services, action),
                             action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
@@ -1095,7 +1093,7 @@ public class ScenarioTest {
                                 </details>
 
                                 """,
-                        format(format, args),
+                        StringUtils.removeEnd(format(format, args), "\n"),
                         action.getTitle(),
                         step,
                         step
