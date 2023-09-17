@@ -58,7 +58,7 @@ actions:
     name: teamA
 
   - type: FILE
-    title: Review the kafka properties to connect to teamA
+    title: Review the kafka properties to connect to `teamA`
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
@@ -81,9 +81,8 @@ actions:
           "config": {
             "headers": {
               "X-MY-KEY": "my own value",
-              "X-USER-IP": "{{userIp}}",
-              "X-USERNAME": "{{user}}",
-              "X-INTERPOLATED": "{{userIp}} to {{gatewayIp}} of {{user}}"
+              "X-USER": "{{user}}",
+              "X-INTERPOLATED": "User {{user}} via ip {{userIp}}"
             }
           }
     markdown: |
@@ -122,6 +121,45 @@ actions:
         headers:
           "X-MY-KEY":
             operator: containsIgnoreCase
+            expected: 'my own value'
+
+  - type: ADD_INTERCEPTORS
+    title: Create `remove-headers` interceptor
+    gateway: gateway1
+    interceptors:
+      teamA:
+        remove-headers:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.MessageHeaderRemovalPlugin"
+          "priority": 100
+          "config": {
+            "headerKeyRegex": "X-MY-.*"
+          }
+    markdown: |
+      Let's create the interceptor `remove-headers` to remove headers that match `X-MY-.*`
+
+
+  - type: CONSUME
+    title: Verify tom and florent have the corresponding headers
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users
+    showHeaders: true
+    maxMessages: 2
+    assertSize: 2
+    assertions:
+      - description: Confirm `tom` has not the header `X-MY-KEY`
+        value:
+          operator: containsIgnoreCase
+          expected: 'tom'
+        headerKeys:
+          - operator: doesNotContainIgnoringCase
+            expected: 'my own value'
+      - description: Confirm `florent` has not the header `X-MY-KEY`
+        value:
+          operator: containsIgnoreCase
+          expected: 'florent'
+        headerKeys:
+          - operator: doesNotContainIgnoringCase
             expected: 'my own value'
 
   - type: DOCKER

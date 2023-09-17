@@ -931,9 +931,15 @@ public class ScenarioTest {
     }
 
     private static boolean validateHeaders(Scenario.RecordAssertion recordAssertion, List<Header> headers) {
-        if (recordAssertion.getHeaders() == null) {
+        if (recordAssertion.getHeaders().isEmpty()) {
             return true;
         }
+
+        //recordAssertion.getHeaderKeys().
+        for (Scenario.Assertion headerKeyAssertion : recordAssertion.getHeaderKeys()) {
+            headers.stream().filter(header -> validate(headerKeyAssertion, header.key())).findFirst().isPresent();
+        }
+
         for (String headerKey : recordAssertion.getHeaders().keySet()) {
             Scenario.Assertion headerAssertion = recordAssertion.getHeaders().get(headerKey);
             List<String> headerValues = headers.stream().filter(e -> headerKey.equals(e.key())).map(h -> new String(h.value())).toList();
@@ -997,7 +1003,7 @@ public class ScenarioTest {
                                 ```
 
                                 <details>
-                                  <summary>*Live* video command output</summary>
+                                  <summary>*Realtime* command output</summary>
 
                                   ![%s](images/%s.gif)
 

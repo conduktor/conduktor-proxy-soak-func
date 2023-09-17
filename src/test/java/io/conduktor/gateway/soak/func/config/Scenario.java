@@ -300,7 +300,8 @@ public class Scenario {
     @AllArgsConstructor
     public static class RecordAssertion {
         private String description;
-        private LinkedHashMap<String, Assertion> headers;
+        private LinkedHashMap<String, Assertion> headers = new LinkedHashMap<>();
+        private List<Assertion> headerKeys = List.of();
         private Assertion key;
         private Assertion value;
     }
