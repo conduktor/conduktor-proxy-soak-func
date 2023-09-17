@@ -140,10 +140,10 @@ public class Scenario {
             private String name;
             private int partitions;
             private int replicationFactor;
-            private List<String> config = new ArrayList<>();
+            private LinkedHashMap<String, String> config = new LinkedHashMap<>();
         }
 
-        private LinkedHashMap<String, String> properties;
+        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
         private List<CreateTopicRequest> topics;
         private Boolean assertError;
         private List<String> assertErrorMessages = new ArrayList<>();

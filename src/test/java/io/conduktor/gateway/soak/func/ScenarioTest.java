@@ -25,19 +25,18 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
-import org.yaml.snakeyaml.util.UriEncoder;
 
-import java.io.*;
-import java.net.URLDecoder;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -52,6 +51,7 @@ import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdated
 import static io.restassured.RestAssured.given;
 import static java.lang.String.format;
 import static java.nio.charset.Charset.defaultCharset;
+import static java.util.stream.Collectors.joining;
 import static org.apache.commons.io.FileUtils.*;
 import static org.apache.commons.io.FilenameUtils.getExtension;
 import static org.apache.commons.lang3.StringUtils.*;
@@ -379,33 +379,44 @@ public class ScenarioTest {
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
+                String createTopics = "";
+                for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
+                    createTopics += String.format("""
+                                    kafka-topics \\
+                                        --bootstrap-server %s \\
+                                        --command-config %s \\
+                                        --replication-factor %s \\
+                                        --partitions %s%s \\
+                                        --create --if-not-exists \\
+                                        --topic %s
+
+                                    """,
+                            kafkaBoostrapServers(clusters, action),
+                            action.getKafkaConfig(),
+                            "" + topic.getReplicationFactor(),
+                            "" + topic.getPartitions(),
+                            topic.getConfig()
+                                    .entrySet()
+                                    .stream()
+                                    .map(d -> " \\\n    --config " + d.getKey() + "=" + d.getValue())
+                                    .collect(joining()),
+                            topic.getName()
+                    );
+
+                }
+                code(scenario, action, id, createTopics);
+
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
                     for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
                         try {
                             createTopic(adminClient,
                                     topic.getName(),
                                     topic.getPartitions(),
-                                    topic.getReplicationFactor());
+                                    topic.getReplicationFactor(),
+                                    topic.getConfig());
                             if (action.getAssertError() != null) {
                                 Assertions.fail("Expected an error");
                             }
-
-                            code(scenario, action, id + "-" + topic.getName(), """
-                                            kafka-topics \\
-                                                --bootstrap-server %s \\
-                                                --command-config %s \\
-                                                --replication-factor %s \\
-                                                --partitions %s \\
-                                                --create --if-not-exists \\
-                                                --topic %s
-                                            """,
-                                    kafkaBoostrapServers(clusters, action),
-                                    action.getKafkaConfig(),
-                                    "" + topic.getReplicationFactor(),
-                                    "" + topic.getPartitions(),
-                                    topic.getName()
-
-                            );
                         } catch (Exception e) {
                             if (!action.getAssertErrorMessages().isEmpty()) {
                                 assertThat(e.getMessage())
@@ -495,7 +506,7 @@ public class ScenarioTest {
                                                 kafkaBoostrapServers(clusters, action),
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
-                                .collect(Collectors.joining("\n"));
+                                .collect(joining("\n"));
                         code(scenario, action, id, removeEnd(command, "\n"));
 
 
@@ -888,7 +899,7 @@ public class ScenarioTest {
     }
 
     private void savePropertiesToFile(File propertiesFile, Properties properties) throws IOException {
-        String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(Collectors.joining("\n"));
+        String content = properties.keySet().stream().map(key -> key + "=" + properties.get(key)).collect(joining("\n"));
         writeStringToFile(propertiesFile, content, defaultCharset());
     }
 
@@ -909,8 +920,8 @@ public class ScenarioTest {
         return p;
     }
 
-    private static void createTopic(AdminClient kafkaAdminClient, String topic, int partitions, int replicationFactor) throws InterruptedException {
-        KafkaActionUtils.createTopic(kafkaAdminClient, topic, partitions, (short) replicationFactor, Map.of(), 10);
+    private static void createTopic(AdminClient kafkaAdminClient, String topic, int partitions, int replicationFactor, Map<String, String> config) throws InterruptedException {
+        KafkaActionUtils.createTopic(kafkaAdminClient, topic, partitions, (short) replicationFactor, config, 10);
     }
 
     private static void produce(String topic, LinkedList<Scenario.Message> messages, KafkaProducer<String, String> producer) throws ExecutionException, InterruptedException {
