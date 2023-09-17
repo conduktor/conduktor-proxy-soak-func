@@ -44,7 +44,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
@@ -226,17 +225,17 @@ public class ScenarioTest {
     private Scenario scenario;
 
     private void runScenarioSteps(Scenario scenario, LinkedList<Scenario.Action> actions) throws Exception {
-        Map<String, Properties> clusters = scenario.toServiceProperties();
+        Map<String, Properties> services = scenario.toServiceProperties();
         this.scenario = scenario;
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
-                step(clusters, clientFactory, ++id, _action);
+                step(services, clientFactory, ++id, _action);
             }
         }
     }
 
-    private void step(Map<String, Properties> clusters, ClientFactory clientFactory, int _id, Scenario.Action _action) throws Exception {
+    private void step(Map<String, Properties> services, ClientFactory clientFactory, int _id, Scenario.Action _action) throws Exception {
         String id = format("%02d", _id);
         log.info("[" + id + "] Executing " + _action.simpleMessage());
 
@@ -344,12 +343,12 @@ public class ScenarioTest {
                         .response()
                         .as(VClusterCreateResponse.class);
 
-                Properties properties = clusters.getOrDefault(action.getName(), new Properties());
+                Properties properties = services.getOrDefault(action.getName(), new Properties());
                 properties.put(BOOTSTRAP_SERVERS, gatewayBootstrapServers);
                 properties.put("security.protocol", "SASL_PLAINTEXT");
                 properties.put("sasl.mechanism", "PLAIN");
                 properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
-                clusters.put(action.getName(), properties);
+                services.put(action.getName(), properties);
 
                 savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
@@ -379,20 +378,44 @@ public class ScenarioTest {
             }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
+
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
+                    for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
+                        try {
+                            createTopic(adminClient,
+                                    topic.getName(),
+                                    topic.getPartitions(),
+                                    topic.getReplicationFactor(),
+                                    topic.getConfig());
+                            if (action.isAssertError()) {
+                                Assertions.fail("Expected an error during the " + topic.getName() + " creation");
+                            }
+                        } catch (Exception e) {
+                            if (!action.getAssertErrorMessages().isEmpty()) {
+                                assertThat(e.getMessage())
+                                        .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
+                            }
+                            if (!action.isAssertError()) {
+                                Assertions.fail("Did not expect an error during the " + topic.getName() + " creation", e);
+                            }
+                            log.warn(topic + " creation failed", e);
+                        }
+                    }
+                }
+
                 String createTopics = "";
                 for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
                     createTopics += String.format("""
                                     kafka-topics \\
-                                        --bootstrap-server %s \\
-                                        --command-config %s \\
+                                        --bootstrap-server %s%s \\
                                         --replication-factor %s \\
                                         --partitions %s%s \\
                                         --create --if-not-exists \\
                                         --topic %s
 
                                     """,
-                            kafkaBoostrapServers(clusters, action),
-                            action.getKafkaConfig(),
+                            kafkaBoostrapServers(services, action),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
                             "" + topic.getReplicationFactor(),
                             "" + topic.getPartitions(),
                             topic.getConfig()
@@ -406,37 +429,17 @@ public class ScenarioTest {
                 }
                 code(scenario, action, id, createTopics);
 
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
-                    for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
-                        try {
-                            createTopic(adminClient,
-                                    topic.getName(),
-                                    topic.getPartitions(),
-                                    topic.getReplicationFactor(),
-                                    topic.getConfig());
-                            if (action.getAssertError() != null) {
-                                Assertions.fail("Expected an error");
-                            }
-                        } catch (Exception e) {
-                            if (!action.getAssertErrorMessages().isEmpty()) {
-                                assertThat(e.getMessage())
-                                        .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
-                            }
-                            log.warn(topic + " creation failed", e);
-                        }
-                    }
-                }
             }
             case LIST_TOPICS -> {
                 var action = ((Scenario.ListTopicsAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
                     Set<String> topics = adminClient.listTopics().names().get();
                     code(scenario, action, id, """
                                     kafka-topics \\
                                         --bootstrap-server %s%s \\
                                         --list
                                     """,
-                            kafkaBoostrapServers(clusters, action),
+                            kafkaBoostrapServers(services, action),
                             action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig());
                     if (Objects.nonNull(action.assertSize)) {
                         assertThat(topics)
@@ -454,7 +457,7 @@ public class ScenarioTest {
             }
             case DESCRIBE_TOPICS -> {
                 var action = ((Scenario.DescribeTopicsAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(clusters, action))) {
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
                     Map<String, TopicDescription> topics = adminClient
                             .describeTopics(action.topics)
                             .allTopicNames()
@@ -466,7 +469,7 @@ public class ScenarioTest {
                                             --describe \\
                                             --topic %s
                                         """,
-                                kafkaBoostrapServers(clusters, action),
+                                kafkaBoostrapServers(services, action),
                                 action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
                                 topic);
                     }
@@ -487,8 +490,7 @@ public class ScenarioTest {
             }
             case PRODUCE -> {
                 var action = ((Scenario.ProduceAction) _action);
-                Properties properties = getProperties(clusters, action);
-                try (var producer = clientFactory.kafkaProducer(properties)) {
+                try (var producer = clientFactory.kafkaProducer(getProperties(services, action))) {
                     try {
                         produce(action.getTopic(), action.getMessages(), producer);
 
@@ -503,7 +505,7 @@ public class ScenarioTest {
                                                                 --topic %s
                                                         """,
                                                 message.getValue(),
-                                                kafkaBoostrapServers(clusters, action),
+                                                kafkaBoostrapServers(services, action),
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
                                                 action.getTopic()))
                                 .collect(joining("\n"));
@@ -524,7 +526,7 @@ public class ScenarioTest {
             }
             case CONSUME -> {
                 var action = ((Scenario.ConsumeAction) _action);
-                Properties properties = getProperties(clusters, action);
+                Properties properties = getProperties(services, action);
                 if (!properties.containsKey("group.id")) {
                     properties.put("group.id", "step-" + id);
                 }
@@ -578,7 +580,7 @@ public class ScenarioTest {
                                     --bootstrap-server %s%s \\
                                     --topic %s%s%s%s%s%s
                                 """,
-                        kafkaBoostrapServers(clusters, action),
+                        kafkaBoostrapServers(services, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
@@ -768,7 +770,7 @@ public class ScenarioTest {
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
-                Properties properties = getProperties(clusters, action);
+                Properties properties = getProperties(services, action);
                 String expandedScript = action.getScript();
 
                 var env = new HashMap<String, String>();
@@ -823,7 +825,7 @@ public class ScenarioTest {
             }
             case DESCRIBE_KAFKA_PROPERTIES -> {
                 var action = ((Scenario.DescribeKafkaPropertiesAction) _action);
-                Properties properties = clusters.get(action.getKafka());
+                Properties properties = services.get(action.getKafka());
                 assertThat(properties)
                         .isNotNull();
                 if (!action.assertKeys.isEmpty()) {
@@ -903,17 +905,16 @@ public class ScenarioTest {
         writeStringToFile(propertiesFile, content, defaultCharset());
     }
 
-    private Properties getProperties(Map<String, Properties> virtualClusters, Scenario.KafkaAction action) {
-        Properties p = new Properties();
-        if (isNotBlank(action.getKafka())) {
-            Properties t = virtualClusters.get(action.getKafka());
-            if (t == null) {
-                throw new RuntimeException("No kafka defined for " + action.getKafka());
-            }
-            if (t != null) {
-                p.putAll(t);
-            }
+    private Properties getProperties(Map<String, Properties> services, Scenario.KafkaAction action) {
+        if (isBlank(action.getKafka())) {
+            throw new RuntimeException(action.simpleMessage() + " needs to define its target kafka");
         }
+        Properties kafkaService = services.get(action.getKafka());
+        if (kafkaService == null) {
+            throw new RuntimeException(action.simpleMessage() + " has a kafka as " + action.getKafka() + ", it is not known");
+        }
+        Properties p = new Properties();
+        p.putAll(kafkaService);
         if (action.getProperties() != null) {
             p.putAll(action.getProperties());
         }

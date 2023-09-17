@@ -145,7 +145,7 @@ public class Scenario {
 
         private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
         private List<CreateTopicRequest> topics;
-        private Boolean assertError;
+        private boolean assertError = false;
         private List<String> assertErrorMessages = new ArrayList<>();
 
     }
