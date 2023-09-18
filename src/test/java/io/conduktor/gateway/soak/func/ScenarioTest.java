@@ -25,6 +25,7 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -145,7 +146,7 @@ public class ScenarioTest {
     private static File executionFolder;
 
 
-    @BeforeAll
+    @BeforeEach
     public void setUp() throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.command("bash", "-c", "docker rm -f $(docker ps -aq)");
@@ -201,17 +202,19 @@ public class ScenarioTest {
         appendTo("record-asciinema.sh", RECORD_ASCIINEMA_SH);
         runScenarioSteps(scenario, actions);
 
-        log.info("Re-recording the scenario to include bash commands output in Readme");
-        ProcessBuilder commandOutput = new ProcessBuilder();
-        commandOutput.directory(executionFolder);
-        commandOutput.command("sh", "record-output.sh");
-        commandOutput.start().waitFor();
+        if (false) {
+            log.info("Re-recording the scenario to include bash commands output in Readme");
+            ProcessBuilder commandOutput = new ProcessBuilder();
+            commandOutput.directory(executionFolder);
+            commandOutput.command("sh", "record-output.sh");
+            commandOutput.start().waitFor();
 
-        log.info("Recording one more time with asciinema to be fancy");
-        ProcessBuilder recording = new ProcessBuilder();
-        recording.directory(executionFolder);
-        recording.command("sh", "record-asciinema.sh");
-        recording.start().waitFor();
+            log.info("Recording one more time with asciinema to be fancy");
+            ProcessBuilder recording = new ProcessBuilder();
+            recording.directory(executionFolder);
+            recording.command("sh", "record-asciinema.sh");
+            recording.start().waitFor();
+        }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }
@@ -591,6 +594,7 @@ public class ScenarioTest {
             case FAILOVER -> {
                 var action = ((Scenario.FailoverAction) _action);
                 String gatewayHost = gatewayHost(action);
+
                 given()
                         .baseUri(gatewayHost + "/admin/pclusters/v1")
                         .auth()
@@ -612,6 +616,16 @@ public class ScenarioTest {
                         gatewayHost,
                         action.from,
                         action.to);
+
+                appendTo("/Readme.md",
+                        format("""
+                                        From now on `%s` the cluster with id `%s` is pointing to the `%s cluster.
+
+                                        """,
+                                action.gateway,
+                                action.from,
+                                action.to
+                        ));
             }
             case ADD_INTERCEPTORS -> {
                 var action = ((Scenario.AddInterceptorAction) _action);
@@ -854,10 +868,17 @@ public class ScenarioTest {
 
     private String vCluster(Scenario.GatewayAction action) {
         assertGatewayHost(action);
-        if (isBlank(action.vcluster)) {
-            throw new RuntimeException(action.simpleMessage() + "gateway has no vcluster specified");
+        if (isBlank(action.getVcluster())) {
+            try {
+                System.out.println(new ObjectMapper()
+                        .enable(SerializationFeature.INDENT_OUTPUT)
+                        .writeValueAsString(action));
+            } catch (Exception e) {
+                //
+            }
+            throw new RuntimeException("[" + action.simpleMessage() + "] gateway has no vcluster specified");
         }
-        return action.vcluster;
+        return action.getVcluster();
     }
 
     private String kafkaBoostrapServers(Map<String, Properties> clusters, Scenario.KafkaAction action) {
@@ -865,7 +886,7 @@ public class ScenarioTest {
             throw new RuntimeException(action.simpleMessage() + "kafka is not specified");
         }
         if (!clusters.containsKey(action.getKafka())) {
-            throw new RuntimeException(action.simpleMessage() + " kafka " + action.getKafka() + " is not known");
+            throw new RuntimeException("[" + action.simpleMessage() + "] kafka " + action.getKafka() + " is not known");
         }
         if (!clusters.get(action.getKafka()).containsKey(BOOTSTRAP_SERVERS)) {
             throw new RuntimeException(action.simpleMessage() + "kafka " + action.getKafka() + " has not the " + BOOTSTRAP_SERVERS + " property");
@@ -905,11 +926,11 @@ public class ScenarioTest {
 
     private Properties getProperties(Map<String, Properties> services, Scenario.KafkaAction action) {
         if (isBlank(action.getKafka())) {
-            throw new RuntimeException(action.simpleMessage() + " needs to define its target kafka");
+            throw new RuntimeException("[" + action.simpleMessage() + "] needs to define its target kafka");
         }
         Properties kafkaService = services.get(action.getKafka());
         if (kafkaService == null) {
-            throw new RuntimeException(action.simpleMessage() + " has a kafka as " + action.getKafka() + ", it is not known");
+            throw new RuntimeException("[" + action.simpleMessage() + "] has a kafka as " + action.getKafka() + ", it is not known");
         }
         Properties p = new Properties();
         p.putAll(kafkaService);

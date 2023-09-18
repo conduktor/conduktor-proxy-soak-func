@@ -161,6 +161,7 @@ services:
       gateway.host: http://localhost:8889
 
 actions:
+
   - type: INTRODUCTION
     title: What is cluster switching?
     markdown: |
@@ -213,19 +214,19 @@ actions:
   - type: DOCKER
     title: Start the docker environment
     command: docker compose up -d --wait
-    markdown: Start the environment with
+    markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create teamA virtual cluster
+    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
   - type: FILE
-    title: Review the kafka properties to connect to teamA
+    title: Review the kafka properties to connect to `teamA`
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
-    title: Create topic users
+    title: Create topic `users`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -234,7 +235,7 @@ actions:
         partitions: 1
 
   - type: PRODUCE
-    title: Send tom and florent into topic users
+    title: Send `tom` and `florent` into topic `users`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -243,6 +244,7 @@ actions:
       - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
 
   - type: LIST_TOPICS
+    title: List topics
     kafka: kafka1
     assertExists:
       - _acls
@@ -263,7 +265,7 @@ actions:
     topic: _topicMappings
 
   - type: CONSUME
-    title: Wait for mirror maker to do its job on user topics
+    title: Wait for mirror maker to do its job on `users` topics
     kafka: failover-kafka1
     maxMessages: 1
     topic: teamAusers
@@ -284,19 +286,19 @@ actions:
       - teamAusers
 
   - type: FAILOVER
-    title: Call the failover switch api on gateway1
+    title: Call the failover switch api on `gateway1`
     gateway: gateway1
     from: main
     to: failover
 
   - type: FAILOVER
-    title: Call the failover switch api on gateway2
+    title: Call the failover switch api on `gateway2`
     gateway: gateway2
     from: main
     to: failover
 
   - type: PRODUCE
-    title: Produce thibault into users, it should hit only failover-kafka
+    title: Produce `thibault` into `users`, it should hit only `failover-kafka`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -304,7 +306,7 @@ actions:
       - value: '{"name":"thibaut","username":"thibaut@conduktor.io","password":"youpi","visa":"#812SSS","address":"Les ifs"}'
 
   - type: CONSUME
-    title: Verify we can read florent, and tom (via mirror maker) and thibault (via switch)
+    title: Verify we can read `florent` (via mirror maker), `tom` (via mirror maker) and `thibault` (via cluster switching)
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -317,7 +319,7 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
-    title: Verify thibaut is not in main kafka
+    title: Verify `thibaut` is not in main kafka
     kafka: kafka1
     topic: teamAusers
     assertSize: 2
@@ -328,7 +330,7 @@ actions:
           expected: 'thibaut'
 
   - type: CONSUME
-    title: Verify thibaut is in failover
+    title: Verify `thibaut` is in failover
     kafka: failover-kafka1
     topic: teamAusers
     maxMessages: 3
@@ -346,4 +348,4 @@ actions:
   - type: CONCLUSION
     title: Conclusion
     markdown: |
-      you've seen something deeply interesting
+      Cluster switching help your seamlessly move from one cluster to another!

@@ -17,6 +17,7 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
+      gateway.host: http://localhost:8888
   gateway2:
     docker:
       environment:
@@ -25,6 +26,7 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
+      gateway.host: http://localhost:8889
   vault:
     docker:
       image: hashicorp/vault
@@ -53,14 +55,31 @@ services:
         test: nc -zv 0.0.0.0 8200
         interval: 5s
         retries: 25
+
 actions:
 
+  - type: FILE
+    title: Review the docker compose environment
+    filename: docker-compose.yaml
+    markdown: |
+      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
+      
+      * A single Zookeeper Server
+      * A main 3 nodes Kafka cluster
+      * A 2 nodes Conduktor Gateway server
+
+  - type: DOCKER
+    title: Start the docker environment
+    command: docker compose up -d --wait
+    markdown: Start your docker environment
+
   - type: CREATE_VIRTUAL_CLUSTERS
+    title: Let's create the virtual cluster `teamA`
     gateway: gateway1
-    names:
-      - teamA
+    name: teamA
 
   - type: CREATE_TOPICS
+    title: Create the `customer-shredding` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -69,12 +88,14 @@ actions:
         partitions: 1
 
   - type: LIST_TOPICS
+    title: List topics
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     assertExists:
       - customers-shredding
 
   - type: ADD_INTERCEPTORS
+    title: Let's ask gateway to encrypt messages using vault and dynamic keys
     gateway: gateway1
     interceptors: {
       "teamA": {
@@ -114,6 +135,7 @@ actions:
     }
 
   - type: LIST_INTERCEPTORS
+    title: List gateway interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 1
@@ -121,6 +143,7 @@ actions:
       - crypto-shredding-encrypt
 
   - type: PRODUCE
+    title: Let's produce sample data for `tom` and `florent`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
@@ -129,6 +152,7 @@ actions:
       - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
 
   - type: CONSUME
+    title: Let's consume the message, and confirm `tom` and `florent` are encrypted
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
@@ -152,6 +176,7 @@ actions:
           expected: '#888999XZ'
 
   - type: ADD_INTERCEPTORS
+    title: Let's add the decrypt interceptor to decipher messages
     gateway: gateway1
     interceptors: {
       "teamA": {
@@ -173,6 +198,7 @@ actions:
     }
 
   - type: LIST_INTERCEPTORS
+    title: List gateway interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 2
@@ -181,6 +207,7 @@ actions:
       - crypto-shredding-decrypt
 
   - type: CONSUME
+    title: Confirm message from `tom` and `florent` are encrypted
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
@@ -204,7 +231,7 @@ actions:
           expected: '#888999XZ'
 
   - type: SH
-    title: Listing created keys in Vault
+    title: Listing keys created in Vault
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -215,7 +242,7 @@ actions:
         --header "X-Vault-Token: vault-plaintext-root-token" | jq -r ".data.keys"
 
   - type: SH
-    title: Remove florent related keys
+    title: Remove `florent` related keys
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -233,6 +260,7 @@ actions:
         --header "X-Vault-Token: vault-plaintext-root-token"
 
   - type: CONSUME
+    title: Let's make sure `florent` data are no more readable!
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
@@ -255,6 +283,12 @@ actions:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'
 
-  - type: CONCLUSION
-    title: Done
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
 
+  - type: CONCLUSION
+    title: Conclusion
+    markdown: |
+      Crypto shredding help you protect your most precious information

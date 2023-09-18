@@ -1,4 +1,5 @@
 title: Topic Concentration
+
 services:
   kafka1:
     properties:
@@ -27,6 +28,7 @@ services:
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
       gateway.host: http://localhost:8889
+
 actions:
 
   - type: INTRODUCTION
@@ -53,7 +55,7 @@ actions:
   - type: DOCKER
     title: Start the docker environment
     command: docker compose up -d --wait
-    markdown: Start the environment with
+    markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
     title: Create `teamA` virtual cluster
@@ -172,6 +174,7 @@ actions:
       - concentrated-topic-with-100-partitions
 
   - type: PRODUCE
+    title: Produce message into `concentrated-topic-with-10-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
@@ -179,6 +182,7 @@ actions:
       - value: '{"type": "Sports", "price": 75, "color": "blue"}'
 
   - type: CONSUME
+    title: Consume the message from `concentrated-topic-with-10-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
@@ -190,6 +194,7 @@ actions:
           expected: '{"type": "Sports", "price": 75, "color": "blue"}'
 
   - type: PRODUCE
+    title: Produce message into `concentrated-topic-with-100-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
@@ -197,6 +202,7 @@ actions:
       - value: '{"msg":"hello world"}'
 
   - type: CONSUME
+    title: Consume the message from `concentrated-topic-with-100-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
@@ -207,6 +213,13 @@ actions:
           operator: contains
           expected: '{"msg":"hello world"}'
 
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
+
   - type: CONCLUSION
-    title: Done
+    title: Conclusion
+    markdown: |
+      Infinite partitions with topic concentration is really a game changer!
 

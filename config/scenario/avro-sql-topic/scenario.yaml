@@ -23,6 +23,7 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
+      gateway.host: http://localhost:8888
   gateway2:
     docker:
       environment:
@@ -31,12 +32,28 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
     properties:
       bootstrap.servers: localhost:6969,localhost:7969
+      gateway.host: http://localhost:8889
+
 actions:
+
+  - type: FILE
+    title: Review the docker compose environment
+    filename: docker-compose.yaml
+    markdown: |
+      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
+      
+      * A single Zookeeper Server
+      * A main 3 nodes Kafka cluster
+      * A 2 nodes Conduktor Gateway server
+
+  - type: DOCKER
+    title: Start the docker environment
+    command: docker compose up -d --wait
+    markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
-    names:
-      - teamA
+    name: teamA
 
   - type: CREATE_TOPICS
     kafka: teamA
@@ -61,7 +78,7 @@ actions:
       echo '{"type":"Sports","price":75,"color":"blue"}' | \
           kafka-avro-console-producer  \
               --bootstrap-server ${BOOTSTRAP_SERVERS} \
-              --producer.config teamA.properties \
+              --producer.config teamA-sa.properties \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
               --property value.schema='{
@@ -77,7 +94,7 @@ actions:
       echo '{"type":"SUV","price":55,"color":"red"}' | \
           kafka-avro-console-producer  \
               --bootstrap-server ${BOOTSTRAP_SERVERS} \
-              --producer.config teamA.properties \
+              --producer.config teamA-sa.properties \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
               --property value.schema='{
@@ -98,7 +115,7 @@ actions:
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --consumer.config teamA.properties \
+          --consumer.config teamA-sa.properties \
           --topic cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
@@ -142,7 +159,7 @@ actions:
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --consumer.config teamA.properties \
+          --consumer.config teamA-sa.properties \
           --topic red-cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
@@ -153,4 +170,12 @@ actions:
       - Processed a total of 1 messages
       - red
 
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
+
   - type: CONCLUSION
+    title: Conclusion
+    markdown: |
+        sql virtual topics can also work on data serialized with Schema registry!

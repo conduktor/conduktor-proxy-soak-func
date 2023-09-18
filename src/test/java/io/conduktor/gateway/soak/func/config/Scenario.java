@@ -6,7 +6,9 @@ import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.*;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 
 @Data
@@ -74,8 +76,8 @@ public class Scenario {
     public static class Action {
         private ActionType type;
         private Integer headerLevel;
-        private String title = "";
-        private String markdown = "";
+        public String title = "";
+        public String markdown = "";
         public String gateway;
 
         public String simpleMessage() {
@@ -97,8 +99,8 @@ public class Scenario {
     @Data
     public static class KafkaAction extends Action {
         public String kafka;
-        private String kafkaConfig;
-        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        public String kafkaConfig;
+        public LinkedHashMap<String, String> properties = new LinkedHashMap<>();
     }
 
     @Data
@@ -155,6 +157,15 @@ public class Scenario {
         private boolean assertError = false;
         private List<String> assertErrorMessages = new ArrayList<>();
 
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Creating topics " + topics.stream()
+                    .map(CreateTopicRequest::getName)
+                    .collect(joining(",", "`", "`"));
+        }
     }
 
     @Data
@@ -167,6 +178,14 @@ public class Scenario {
         private String topic;
         private Boolean assertError;
         private List<String> assertErrorMessages = new ArrayList<>();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Producing " + messages.size() + (messages.size() == 1 ? "" : "s") + " messages in " + topic;
+        }
     }
 
     @Data
@@ -183,6 +202,14 @@ public class Scenario {
         private boolean showRecords = false;
         private boolean showHeaders = false;
         private String topic;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Consuming from " + topic;
+        }
     }
 
     @Data
@@ -191,6 +218,15 @@ public class Scenario {
     public static class CreateVirtualClustersAction extends GatewayAction {
         public String name;
         public String serviceAccount = "sa";
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Creating virtual topic `" + name + "`";
+        }
+
     }
 
     @Data
@@ -199,6 +235,14 @@ public class Scenario {
     public static class FailoverAction extends GatewayAction {
         public String from;
         public String to;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Failing over from `" + from + "` to `" + to + "`";
+        }
     }
 
     @Data
@@ -207,6 +251,15 @@ public class Scenario {
     @EqualsAndHashCode(callSuper = true)
     public static class AddInterceptorAction extends GatewayAction {
         private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Adding interceptor" + (interceptors.keySet().size() == 1 ? "" : "s") +
+                    " " + interceptors.keySet().stream().collect(joining(",", "`", "`"));
+        }
     }
 
     @Data
@@ -215,6 +268,15 @@ public class Scenario {
     @EqualsAndHashCode(callSuper = true)
     public static class RemoveInterceptorAction extends GatewayAction {
         private List<String> names = new ArrayList<>();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Removing interceptor" + (names.size() == 1 ? "" : "s") +
+                    " " + names.stream().collect(joining(",", "`", "`"));
+        }
     }
 
     @Data
@@ -224,6 +286,14 @@ public class Scenario {
     public static class AddTopicMappingAction extends GatewayAction {
         private String topicPattern;
         private String physicalTopicName;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Creating mapping `" + topicPattern + "` to `" + physicalTopicName + "`";
+        }
 
         @Data
         @Builder
@@ -243,6 +313,14 @@ public class Scenario {
         public String vcluster;
         public Integer assertSize;
         private List<String> assertNames = new ArrayList<>();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Listing interceptors on `" + gateway + "`";
+        }
     }
 
     public static class DocumentationAction extends Action {
@@ -251,11 +329,13 @@ public class Scenario {
     @Data
     public static class IntroductionAction extends Action {
         public int headerLevel = 1;
+        public String title = "Introduction";
     }
 
     @Data
     public static class ConclusionAction extends Action {
         public int headerLevel = 1;
+        public String title = "Conclusion";
     }
 
     @Data
@@ -263,6 +343,14 @@ public class Scenario {
     @AllArgsConstructor
     public static class FileAction extends Action {
         public String filename;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Review `" + filename + "`";
+        }
     }
 
     @Data
