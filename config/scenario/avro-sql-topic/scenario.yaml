@@ -70,6 +70,7 @@ actions:
       - cars
 
   - type: SH
+    title: Produce avro payload
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -108,6 +109,7 @@ actions:
                 }'
       
   - type: SH
+    title: Consume the avro payload back
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -130,6 +132,7 @@ actions:
         partitions: 1
 
   - type: ADD_INTERCEPTORS
+    title: Creating the `red-cars` sql interceptor
     gateway: gateway1
     interceptors:
       teamA:
@@ -152,6 +155,7 @@ actions:
       - red-cars
 
   - type: SH
+    title: Read from the `red-cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
@@ -177,5 +181,4 @@ actions:
 
   - type: CONCLUSION
     title: Conclusion
-    markdown: |
-        sql virtual topics can also work on data serialized with Schema registry!
+    markdown: SQL virtual topics can also work on data serialized with Schema Registry!

@@ -186,6 +186,7 @@ actions:
 
   - type: SH
     showOutput: true
+    kafka: kafka1
     script: |
       curl \
         --silent \
