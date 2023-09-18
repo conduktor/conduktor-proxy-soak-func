@@ -6,10 +6,8 @@ import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import static java.util.stream.Collectors.*;
+import static java.util.stream.Collectors.joining;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 
 @Data
@@ -64,6 +62,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = FileAction.class, name = "FILE"),
             @JsonSubTypes.Type(value = IntroductionAction.class, name = "INTRODUCTION"),
+            @JsonSubTypes.Type(value = AsciinemaAction.class, name = "ASCIINEMA"),
             @JsonSubTypes.Type(value = ConclusionAction.class, name = "CONCLUSION"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
@@ -334,6 +333,19 @@ public class Scenario {
     }
 
     @Data
+
+    public static class AsciinemaAction extends Action {
+        public String title = "View the full demo in realtime";
+        public String markdown = """
+                                
+                You can either follow all the steps manually, or just enjoy the recording 
+                                
+                [![asciicast](https://asciinema.org/a/ASCIINEMA_UID.svg)](https://asciinema.org/a/ASCIINEMA_UID)
+                                
+                """;
+    }
+
+    @Data
     public static class ConclusionAction extends Action {
         public int headerLevel = 1;
         public String title = "Conclusion";
@@ -452,6 +464,7 @@ public class Scenario {
         SH,
         DOCKER,
         DESCRIBE_KAFKA_PROPERTIES,
-        FAILOVER;
+        FAILOVER,
+        ASCIINEMA;
     }
 }

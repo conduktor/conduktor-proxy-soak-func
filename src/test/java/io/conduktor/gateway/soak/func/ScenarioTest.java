@@ -24,7 +24,6 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -77,7 +76,7 @@ public class ScenarioTest {
               local RESET="\\033[0m"
               local file=$1
               local chars=$(cat $file| wc -c)
-                      
+
               printf "${GREEN}"
               if [ "$chars" -lt 70 ] ; then
                   cat $file | pv -qL 30
@@ -91,13 +90,19 @@ public class ScenarioTest {
                   cat $file | pv -qL 400
               fi
               echo "${RESET}"
-                      
+
               . $file
             }
-                      
+
             type_and_execute $1
             """;
     public static final String RECORD_ASCIINEMA_SH = """
+            svg-term \\
+              --in asciinema/all.asciinema \\
+              --width 140 --height 20 \\
+              --out images/all.svg \\
+              --window true
+
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing asciinema for $stepSh"
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
@@ -127,6 +132,17 @@ public class ScenarioTest {
                   asciinema/$step.asciinema \\
                   images/$step.gif
             done
+
+            asciinema rec \\
+              --title "%s" \\
+              --idle-time-limit 2 \\
+              --cols 140 --rows 40 \\
+              --command "sh run.sh" \\
+              asciinema/all.asciinema
+
+            asciinemaUid=$(asciinema upload asciinema/all.asciinema 2>&1 | grep http | awk '{print $1}' | cut -d '/' -f 5)
+            gsed -i "s/ASCIINEMA_UID/$asciinemaUid/g" Readme.md
+
             """;
     public static final String RECORD_COMMAND_SH = """
             for stepSh in $(ls step*sh | sort ) ; do
@@ -197,25 +213,45 @@ public class ScenarioTest {
         createDirectory(executionFolder.getAbsolutePath(), "/output");
 
         appendTo("docker-compose.yaml", getUpdatedDockerCompose(scenario));
-        appendTo("run.sh", "");
+        appendTo("run.sh", """
+                #!/bin/sh
+
+                RED='\\033[0;31m'
+                GREEN='\\033[0;32m'
+                YELLOW='\\033[0;33m'
+                BLUE='\\033[0;34m'
+                WHITE='\\033[0;97m'
+                NC='\\033[0m' # No Color
+
+                function banner() {
+                    printf "$1# $2$NC\\n" | pv -qL 20
+                }
+
+                function header() {
+                    banner "$WHITE" "$1"
+                }
+
+                function step() {
+                    banner "$BLUE" "$1"
+                }
+
+                """);
         appendTo("type.sh", TYPE_SH);
         appendTo("record-output.sh", RECORD_COMMAND_SH);
-        appendTo("record-asciinema.sh", RECORD_ASCIINEMA_SH);
+        appendTo("record-asciinema.sh", format(RECORD_ASCIINEMA_SH, scenario.getTitle()));
         runScenarioSteps(scenario, actions);
 
-//        if (false) {
-            log.info("Re-recording the scenario to include bash commands output in Readme");
-            ProcessBuilder commandOutput = new ProcessBuilder();
-            commandOutput.directory(executionFolder);
-            commandOutput.command("sh", "record-output.sh");
-            commandOutput.start().waitFor();
+        log.info("Re-recording the scenario to include bash commands output in Readme");
+        ProcessBuilder commandOutput = new ProcessBuilder();
+        commandOutput.directory(executionFolder);
+        commandOutput.command("sh", "record-output.sh");
+        commandOutput.start().waitFor();
 
-            log.info("Recording one more time with asciinema to be fancy");
-            ProcessBuilder recording = new ProcessBuilder();
-            recording.directory(executionFolder);
-            recording.command("sh", "record-asciinema.sh");
-            recording.start().waitFor();
-//        }
+        log.info("Recording one more time with asciinema to be fancy");
+        ProcessBuilder recording = new ProcessBuilder();
+        recording.directory(executionFolder);
+        recording.command("sh", "record-asciinema.sh");
+        recording.start().waitFor();
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }
@@ -254,7 +290,7 @@ public class ScenarioTest {
                         trimToEmpty(_action.getMarkdown())));
 
         switch (_action.getType()) {
-            case INTRODUCTION, CONCLUSION, STEP -> {
+            case INTRODUCTION, CONCLUSION, STEP, ASCIINEMA -> {
                 //
             }
             case FILE -> {
@@ -1094,7 +1130,13 @@ public class ScenarioTest {
     private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
 
         String step = "step-" + id + "-" + action.getType();
-        appendTo("run.sh", "echo '" + action.getTitle() + "'\nsh " + step + ".sh\n\n");
+        appendTo("run.sh", format("""
+                        step '%s'
+                        sh %s.sh
+
+                        """,
+                action.getTitle(),
+                step));
         appendTo(step + ".sh", format(format, args));
 
         appendTo("/Readme.md",
@@ -1131,7 +1173,7 @@ public class ScenarioTest {
         File file = new File(executionFolder + "/" + filename);
         if ("sh".equals(getExtension(file.getName())) && !code.startsWith("#!/bin/")) {
             if ((file.exists() && !readFileToString(file, defaultCharset()).startsWith("#!/bin/"))) {
-                code = "#!/bin/sh\n" + code;
+                code = "\n" + code;
             }
         }
         writeStringToFile(

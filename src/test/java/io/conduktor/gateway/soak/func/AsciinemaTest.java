@@ -46,7 +46,7 @@ public class AsciinemaTest {
         sh.setExecutable(true);
         if (StringUtils.isNotBlank(code)) {
             String header = """
-                    #!/bin/sh
+                    
                     function execute() {
                         chars=$(echo "$*" | wc -c)
                         sleep 2
