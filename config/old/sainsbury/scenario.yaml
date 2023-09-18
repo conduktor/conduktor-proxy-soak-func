@@ -5,25 +5,16 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka2:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   kafka3:
     environment:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
     properties:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
-      auto.offset.reset: earliest
-      enable.auto.commit: false
-      client.id: clientId
   gateway1:
     docker:
       image: ghcr.io/conduktor/conduktor-gateway-distro:2.1.4
@@ -68,6 +59,17 @@ actions:
     gateway: gateway1
     name: teamA
 
+  - type: CREATE_TOPICS
+    title: Create the topic `london`
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: concentrated
+        replicationFactor: 1
+        partitions: 10
+        config:
+          cleanup.policy: compact
+
   - type: ADD_TOPIC_MAPPING
     title: Create a topic mapping
     gateway: gateway1
@@ -90,7 +92,7 @@ actions:
       done | \
         xargs -I _ -P16 kafka-topics \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --command-config teamA-sa.properties \
+          --command-config ${KAFKA_CONFIG_FILE} \
           --config cleanup.policy=compact \
           --create --topic _
 
@@ -130,7 +132,7 @@ actions:
       done | \
         xargs -I _ -P15 sh -c "echo _ | kafka-console-producer \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --producer.config teamA-sa.properties \
+          --producer.config ${KAFKA_CONFIG_FILE} \
           --topic _"
 
   - type: SH
@@ -157,7 +159,7 @@ actions:
       done | \
         xargs -I _ -P15 sh -c "kafka-console-consumer \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --consumer.config teamA-sa.properties \
+          --consumer.config ${KAFKA_CONFIG_FILE} \
           --topic _ \
           --group _ \
           --from-beginning \
@@ -171,7 +173,7 @@ actions:
     script: |
       echo "number of consumer groups " $(kafka-consumer-groups \
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
-        --command-config teamA-sa.properties \
+        --command-config ${KAFKA_CONFIG_FILE} \
         --list | wc -l )
     assertOutputContains:
       - "number of consumer groups  100"
@@ -187,7 +189,7 @@ actions:
       done | \
         xargs -I _ -P15 sh -c "kafka-consumer-groups \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --command-config teamA-sa.properties \
+          --command-config ${KAFKA_CONFIG_FILE} \
           --group _ \
           --describe"
     assertOutputDoesNotContain:
@@ -204,7 +206,7 @@ actions:
       done | \
         xargs -I _ -P15 kafka-topics \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --command-config teamA-sa.properties \
+          --command-config ${KAFKA_CONFIG_FILE} \
           --delete --topic _
     assertOutputDoesNotContain:
       - "Error while executing topic command"
@@ -242,7 +244,7 @@ actions:
     script: |
       kafka-topics \
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
-        --command-config teamA-sa.properties \
+        --command-config ${KAFKA_CONFIG_FILE} \
         --config cleanup.policy=compact \
         --create --if-not-exists \
         --topic unlimited-cache
@@ -250,12 +252,12 @@ actions:
       echo '{"msg": "hello world"}' \
         | kafka-console-producer \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --producer.config teamA-sa.properties \
+          --producer.config ${KAFKA_CONFIG_FILE} \
           --topic unlimited-cache
 
       kafka-console-consumer \
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
-        --consumer.config teamA-sa.properties \
+        --consumer.config ${KAFKA_CONFIG_FILE} \
         --topic unlimited-cache \
         --from-beginning \
         --max-messages 1 | jq
@@ -280,7 +282,7 @@ actions:
     script: |
       kafka-console-consumer \
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
-        --consumer.config teamA-sa.properties \
+        --consumer.config ${KAFKA_CONFIG_FILE} \
         --topic unlimited-cache \
         --from-beginning \
         --max-messages 1 | jq
@@ -304,7 +306,7 @@ actions:
     script: |
       kafka-console-consumer \
         --bootstrap-server ${BOOTSTRAP_SERVERS} \
-        --consumer.config teamA-sa.properties \
+        --consumer.config ${KAFKA_CONFIG_FILE} \
         --topic unlimited-cache \
         --from-beginning \
         --max-messages 1 | jq

@@ -187,6 +187,7 @@ actions:
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
     assertSize: 1
+    showHeaders: true
     assertions:
       - description: Assert expected message
         value:
@@ -206,13 +207,18 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
+    showHeaders: true
     assertSize: 1
     assertions:
       - description: Assert expected message
         value:
           operator: contains
           expected: '{"msg":"hello world"}'
-
+        headers:
+          "PDK_originalPartitions":
+            operator: isNotBlank
+          "PDK_originalTopic":
+            operator: isNotBlank
   - type: DOCKER
     title: Cleanup the docker environment
     command: docker compose down -v

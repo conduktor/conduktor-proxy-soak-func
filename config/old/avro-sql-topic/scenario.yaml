@@ -79,7 +79,7 @@ actions:
       echo '{"type":"Sports","price":75,"color":"blue"}' | \
           kafka-avro-console-producer  \
               --bootstrap-server ${BOOTSTRAP_SERVERS} \
-              --producer.config teamA-sa.properties \
+              --producer.config ${KAFKA_CONFIG_FILE} \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
               --property value.schema='{
@@ -95,7 +95,7 @@ actions:
       echo '{"type":"SUV","price":55,"color":"red"}' | \
           kafka-avro-console-producer  \
               --bootstrap-server ${BOOTSTRAP_SERVERS} \
-              --producer.config teamA-sa.properties \
+              --producer.config ${KAFKA_CONFIG_FILE} \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
               --property value.schema='{
@@ -117,7 +117,7 @@ actions:
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --consumer.config teamA-sa.properties \
+          --consumer.config ${KAFKA_CONFIG_FILE} \
           --topic cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
@@ -163,7 +163,7 @@ actions:
       PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
-          --consumer.config teamA-sa.properties \
+          --consumer.config ${KAFKA_CONFIG_FILE} \
           --topic red-cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \

@@ -64,7 +64,7 @@ actions:
     gateway: gateway1
     vcluster: teamA
     physicalTopicName: concentrated
-    topicPattern: .-.*
+    topicPattern: .*
     markdown: |
       Let's tell the Gateway that topic matching the pattern `.*` need to be concentrated into the underlying `concentrated` physical topic.
       

@@ -142,6 +142,7 @@ public class ScenarioTest {
 
             done
             """;
+    public static final String KAFKA_CONFIG_FILE = "KAFKA_CONFIG_FILE";
 
     private static File executionFolder;
 
@@ -202,7 +203,7 @@ public class ScenarioTest {
         appendTo("record-asciinema.sh", RECORD_ASCIINEMA_SH);
         runScenarioSteps(scenario, actions);
 
-        if (false) {
+//        if (false) {
             log.info("Re-recording the scenario to include bash commands output in Readme");
             ProcessBuilder commandOutput = new ProcessBuilder();
             commandOutput.directory(executionFolder);
@@ -214,7 +215,7 @@ public class ScenarioTest {
             recording.directory(executionFolder);
             recording.command("sh", "record-asciinema.sh");
             recording.start().waitFor();
-        }
+//        }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }
@@ -782,15 +783,20 @@ public class ScenarioTest {
             }
             case SH -> {
                 var action = ((Scenario.ShAction) _action);
-                Properties properties = getProperties(services, action);
                 String expandedScript = action.getScript();
-
                 var env = new HashMap<String, String>();
-                for (String key : properties.stringPropertyNames()) {
-                    String formattedKey = key.toUpperCase().replace(".", "_");
-                    String value = properties.getProperty(key);
-                    expandedScript = replace(expandedScript, "${" + formattedKey + "}", value);
-                    env.put(formattedKey, value);
+                if (action.getKafka() != null) {
+                    Properties properties = getProperties(services, action);
+                    if (StringUtils.isNotBlank(action.kafkaConfig)) {
+                        properties.put(KAFKA_CONFIG_FILE, action.kafkaConfig);
+                    }
+
+                    for (String key : properties.stringPropertyNames()) {
+                        String formattedKey = key.toUpperCase().replace(".", "_");
+                        String value = properties.getProperty(key);
+                        expandedScript = replace(expandedScript, "${" + formattedKey + "}", value);
+                        env.put(formattedKey, value);
+                    }
                 }
 
                 if (action.getGateway() != null) {
