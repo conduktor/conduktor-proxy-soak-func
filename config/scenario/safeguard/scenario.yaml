@@ -1,3 +1,6 @@
+
+
+
 title: Safeguard
 services:
   kafka1:
@@ -117,13 +120,11 @@ actions:
           "config": {
             "replicationFactor": {
               "min": 2,
-              "max": 2,
-              "action": "BLOCK"
+              "max": 2
             },
             "numPartition": {
               "min": 1,
-              "max": 3,
-              "action": "BLOCK"
+              "max": 3
             }
           }
     markdown: |
@@ -167,12 +168,14 @@ actions:
     gateway: gateway1
     interceptors:
       teamA:
-        guard-on-create-topic:
+        guard-on-alter-topic:
           "pluginClass": "io.conduktor.gateway.interceptor.safeguard.AlterTopicConfigPolicyPlugin"
           "priority": "100"
           "config": {
-            "minRetentionMs": 86400000,
-            "maxRetentionMs": 432000000
+            "retentionMs": {
+              "min": 86400000,
+              "max": 432000000
+            }
           }
     markdown: |
       Let's enforce that retention can only be between 1 and 5 days
@@ -184,7 +187,7 @@ actions:
     topics:
       - name: roads
         config:
-          "retention.ms": 5184000000
+          retention.ms: 5184000000
     assertError: true
     markdown: |
       Altering the topic is denied by our policy
@@ -196,7 +199,7 @@ actions:
     topics:
       - name: roads
         config:
-          "retention.ms": 259200000
+          retention.ms: 259200000
     assertError: true
     markdown: |
       Topic updated successfully

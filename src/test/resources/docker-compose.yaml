@@ -115,9 +115,9 @@ services:
       retries: 25
 
   gateway1:
+    image: conduktor/conduktor-gateway:2.1.4
     hostname: gateway1
     container_name: gateway1
-    image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
     depends_on:
@@ -138,9 +138,9 @@ services:
       retries: 25
 
   gateway2:
+    image: conduktor/conduktor-gateway:2.1.4
     hostname: gateway2
     container_name: gateway2
-    image: ghcr.io/conduktor/conduktor-gateway-distro
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
       GATEWAY_START_PORT: 7969

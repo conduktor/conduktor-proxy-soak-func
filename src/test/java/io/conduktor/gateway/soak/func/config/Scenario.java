@@ -14,11 +14,11 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Scenario {
-    private String title;
-    private boolean recordAscinema = true;
-    private boolean recordOutput = true;
+    protected String title;
+    protected Boolean recordAscinema = true;
+    protected Boolean recordOutput = true;
     private Map<String, Service> services;
-    private LinkedList<Action> actions;
+    protected LinkedList<Action> actions;
 
     public Map<String, Properties> toServiceProperties() {
         Map<String, Properties> ret = new HashMap<>();
@@ -28,7 +28,7 @@ public class Scenario {
 
     @Override
     public String toString() {
-        return title;
+        return getTitle();
     }
 
     @Data
@@ -36,8 +36,8 @@ public class Scenario {
     @AllArgsConstructor
     public static class Service {
         private Map<String, Object> docker;
-        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private LinkedHashMap<String, String> environment = new LinkedHashMap<>();
+        protected LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        protected LinkedHashMap<String, String> environment = new LinkedHashMap<>();
 
         public Properties toProperties() {
             Properties ret = new Properties();
@@ -54,7 +54,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = ConsumeAction.class, name = "CONSUME"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
-            @JsonSubTypes.Type(value = AlterTopicAction.class, name = "CREATE_TOPICS"),
+            @JsonSubTypes.Type(value = AlterTopicAction.class, name = "ALTER_TOPICS"),
             @JsonSubTypes.Type(value = CreateVirtualClustersAction.class, name = "CREATE_VIRTUAL_CLUSTERS"),
             @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
             @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
@@ -77,9 +77,9 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Action {
-        private ActionType type;
-        private Integer headerLevel;
-        public String title = "";
+        protected ActionType type;
+        protected Integer headerLevel;
+        protected String title = "";
         public String markdown = "";
         public String gateway;
 
@@ -101,14 +101,14 @@ public class Scenario {
 
     @Data
     public static class KafkaAction extends Action {
-        public String kafka;
-        public String kafkaConfig;
-        public LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        protected String kafka;
+        protected String kafkaConfig;
+        protected LinkedHashMap<String, String> properties = new LinkedHashMap<>();
     }
 
     @Data
     public static class DockerAction extends CommandAction {
-        public String command;
+        protected String command;
     }
 
 
@@ -116,9 +116,9 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ListTopicsAction extends KafkaAction {
-        public Integer assertSize;
-        private List<String> assertExists = new ArrayList<>();
-        private List<String> assertDoesNotExist = new ArrayList<>();
+        protected Integer assertSize;
+        protected List<String> assertExists = List.of();
+        protected List<String> assertDoesNotExist = List.of();
     }
 
 
@@ -126,18 +126,18 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DescribeTopicsAction extends KafkaAction {
-        public List<String> topics;
+        protected List<String> topics;
 
         @Data
         @NoArgsConstructor
         @AllArgsConstructor
         public static final class DescribeTopicsActionAssertions {
-            private String name;
-            private Integer partitions;
-            private Integer replicationFactor;
+            protected String name;
+            protected Integer partitions;
+            protected Integer replicationFactor;
         }
 
-        public List<DescribeTopicsActionAssertions> assertions;
+        protected List<DescribeTopicsActionAssertions> assertions = List.of();
     }
 
     @Data
@@ -149,16 +149,16 @@ public class Scenario {
         @NoArgsConstructor
         @AllArgsConstructor
         public static final class CreateTopicRequest {
-            private String name;
-            private int partitions;
-            private int replicationFactor;
-            private LinkedHashMap<String, String> config = new LinkedHashMap<>();
+            protected String name;
+            protected Integer partitions = 1;
+            protected Integer replicationFactor = 1;
+            protected LinkedHashMap<String, String> config = new LinkedHashMap<>();
         }
 
-        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private List<CreateTopicRequest> topics;
-        private boolean assertError = false;
-        private List<String> assertErrorMessages = new ArrayList<>();
+        protected LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        protected List<CreateTopicRequest> topics;
+        protected Boolean assertError = false;
+        protected List<String> assertErrorMessages = List.of();
 
         @Override
         public String getTitle() {
@@ -180,14 +180,13 @@ public class Scenario {
         @NoArgsConstructor
         @AllArgsConstructor
         public static final class AlterTopicRequest {
-            private String name;
-            private LinkedHashMap<String, String> config = new LinkedHashMap<>();
+            protected String name;
+            protected LinkedHashMap<String, String> config = new LinkedHashMap<>();
         }
 
-        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private List<AlterTopicRequest> topics;
-        private boolean assertError = false;
-        private List<String> assertErrorMessages = new ArrayList<>();
+        public List<AlterTopicRequest> topics;
+        public Boolean assertError = false;
+        public List<String> assertErrorMessages = List.of();
 
         @Override
         public String getTitle() {
@@ -205,11 +204,11 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class ProduceAction extends KafkaAction {
-        private LinkedList<Message> messages;
-        private LinkedHashMap<String, String> properties;
-        private String topic;
-        private Boolean assertError;
-        private List<String> assertErrorMessages = new ArrayList<>();
+        protected LinkedList<Message> messages;
+        protected LinkedHashMap<String, String> properties;
+        protected String topic;
+        protected Boolean assertError;
+        protected List<String> assertErrorMessages = List.of();
 
         @Override
         public String getTitle() {
@@ -225,15 +224,15 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class ConsumeAction extends KafkaAction {
-        private LinkedList<RecordAssertion> assertions = new LinkedList<>();
-        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
-        private String groupId;
-        private Long timeout;
-        private Integer maxMessages;
-        private Integer assertSize;
-        private boolean showRecords = false;
-        private boolean showHeaders = false;
-        private String topic;
+        protected LinkedList<RecordAssertion> assertions = new LinkedList<>();
+        protected LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        public String groupId;
+        protected Long timeout;
+        protected Integer maxMessages;
+        protected Integer assertSize;
+        protected Boolean showRecords = false;
+        protected Boolean showHeaders = false;
+        protected String topic;
 
         @Override
         public String getTitle() {
@@ -248,7 +247,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CreateVirtualClustersAction extends GatewayAction {
-        public String name;
+        protected String name;
         public String serviceAccount = "sa";
 
         @Override
@@ -265,8 +264,8 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FailoverAction extends GatewayAction {
-        public String from;
-        public String to;
+        protected String from;
+        protected String to;
 
         @Override
         public String getTitle() {
@@ -282,7 +281,7 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class AddInterceptorAction extends GatewayAction {
-        private LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
+        protected LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
 
         @Override
         public String getTitle() {
@@ -299,7 +298,7 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class RemoveInterceptorAction extends GatewayAction {
-        private List<String> names = new ArrayList<>();
+        protected List<String> names = List.of();
 
         @Override
         public String getTitle() {
@@ -316,8 +315,8 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class AddTopicMappingAction extends GatewayAction {
-        private String topicPattern;
-        private String physicalTopicName;
+        protected String topicPattern;
+        protected String physicalTopicName;
 
         @Override
         public String getTitle() {
@@ -330,7 +329,7 @@ public class Scenario {
         @Data
         @Builder
         public static class TopicMapping {
-            public String physicalTopicName;
+            protected String physicalTopicName;
             public boolean readOnly = false;
             public boolean concentrated = true;
         }
@@ -342,9 +341,9 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class ListInterceptorAction extends GatewayAction {
-        public String vcluster;
+        protected String vcluster;
         public Integer assertSize;
-        private List<String> assertNames = new ArrayList<>();
+        protected List<String> assertNames = List.of();
 
         @Override
         public String getTitle() {
@@ -361,13 +360,13 @@ public class Scenario {
     @Data
     public static class IntroductionAction extends Action {
         public int headerLevel = 1;
-        public String title = "Introduction";
+        protected String title = "Introduction";
     }
 
     @Data
 
     public static class AsciinemaAction extends Action {
-        public String title = "View the full demo in realtime";
+        protected String title = "View the full demo in realtime";
         public String markdown = """
                                 
                 You can either follow all the steps manually, or just enjoy the recording 
@@ -380,14 +379,14 @@ public class Scenario {
     @Data
     public static class ConclusionAction extends Action {
         public int headerLevel = 1;
-        public String title = "Conclusion";
+        protected String title = "Conclusion";
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FileAction extends Action {
-        public String filename;
+        protected String filename;
 
         @Override
         public String getTitle() {
@@ -400,8 +399,8 @@ public class Scenario {
 
     @Data
     public static class GatewayAction extends Action {
-        public String gateway;
-        public String vcluster;
+        protected String gateway;
+        protected String vcluster;
     }
 
     public static class StepAction extends Action {
@@ -411,8 +410,8 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DescribeKafkaPropertiesAction extends KafkaAction {
-        public List<String> assertKeys = new ArrayList<>();
-        public List<String> assertValues = new ArrayList<>();
+        public List<String> assertKeys = List.of();
+        public List<String> assertValues = List.of();
     }
 
     @Data
@@ -423,8 +422,8 @@ public class Scenario {
         public boolean isDaemon = false;
         public Integer assertError;
         public Integer assertExitCode;
-        public List<String> assertOutputContains = new ArrayList<>();
-        public List<String> assertOutputDoesNotContain = new ArrayList<>();
+        public List<String> assertOutputContains = List.of();
+        public List<String> assertOutputDoesNotContain = List.of();
 
         abstract public String getCommand();
     }
@@ -447,18 +446,18 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Message {
-        private LinkedHashMap<String, String> headers;
-        private String key;
-        private String value;
+        protected LinkedHashMap<String, String> headers;
+        protected String key;
+        protected String value;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RecordAssertion {
-        private String description;
-        private LinkedHashMap<String, Assertion> headers = new LinkedHashMap<>();
-        private List<Assertion> headerKeys = List.of();
+        protected String description;
+        protected LinkedHashMap<String, Assertion> headers = new LinkedHashMap<>();
+        protected List<Assertion> headerKeys = List.of();
         private Assertion key;
         private Assertion value;
     }
@@ -467,15 +466,15 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class InterceptorAssertion {
-        private String name;
+        protected String name;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Assertion {
-        private String operator = "isEqualTo";
-        private String expected;
+        protected String operator = "isEqualTo";
+        protected String expected;
     }
 
     public enum ActionType {
@@ -488,7 +487,7 @@ public class Scenario {
         ADD_TOPIC_MAPPING,
         LIST_TOPICS,
         DESCRIBE_TOPICS,
-        ALTER_TOPIC,
+        ALTER_TOPICS,
         PRODUCE,
         CONSUME,
         ADD_INTERCEPTORS,
