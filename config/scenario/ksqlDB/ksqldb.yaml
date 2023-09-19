@@ -24,7 +24,7 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
         GATEWAY_CLUSTER_ID: private
     properties:
-      bootstrap.servers: localhost:6969,localhost:7969
+      bootstrap.servers: localhost:6969
       gateway.host: http://localhost:8888
   gateway2:
     docker:
@@ -35,7 +35,7 @@ services:
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
         GATEWAY_CLUSTER_ID: private
     properties:
-      bootstrap.servers: localhost:6969,localhost:7969
+      bootstrap.servers: localhost:6969
       gateway.host: http://localhost:8889
 
 actions:
