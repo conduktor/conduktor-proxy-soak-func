@@ -23,6 +23,8 @@ import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -64,7 +66,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ScenarioTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String ADMIN_USER = "admin";
     private static final String ADMIN_PASSWORD = "conduktor";
     private final static String SCENARIO_DIRECTORY_PATH = "config/scenario";
@@ -182,6 +183,8 @@ public class ScenarioTest {
             done
             """;
     public static final String KAFKA_CONFIG_FILE = "KAFKA_CONFIG_FILE";
+    public static final ObjectMapper PRETTY_OBJECT_MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static File executionFolder;
 
@@ -584,7 +587,7 @@ public class ScenarioTest {
                                     action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
                                     configEntries
                                             .stream()
-                                            .map(d -> " \\\n    --config " + d.name() + "=" + d.value())
+                                            .map(d -> " \\\n    --add-config " + d.name() + "=" + d.value())
                                             .collect(joining("")),
                                     topic.getName());
                         } catch (Exception e) {
@@ -636,7 +639,11 @@ public class ScenarioTest {
             }
             case PRODUCE -> {
                 var action = ((Scenario.ProduceAction) _action);
-                try (var producer = clientFactory.kafkaProducer(getProperties(services, action))) {
+                Properties properties = getProperties(services, action);
+                properties.put(ProducerConfig.ACKS_CONFIG, action.getAcks() == null ? "1" : action.getAcks());
+                properties.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, action.getCompression() == null ? "none" : action.getCompression());
+
+                try (var producer = clientFactory.kafkaProducer(properties)) {
                     try {
                         produce(action.getTopic(), action.getMessages(), producer);
 
@@ -647,12 +654,14 @@ public class ScenarioTest {
                                         format("""
                                                         echo '%s' | \\
                                                             kafka-console-producer \\
-                                                                --bootstrap-server %s%s \\
+                                                                --bootstrap-server %s%s%s%s%s \\
                                                                 --topic %s
                                                         """,
                                                 message.getValue(),
                                                 kafkaBoostrapServers(services, action),
                                                 action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
+                                                action.getAcks() == null ? "" : " \\\n        --request-required-acks  " + action.getAcks(),
+                                                action.getCompression() == null ? "" : " \\\n        --compression-codec  " + action.getCompression(),
                                                 action.getTopic()))
                                 .collect(joining("\n"));
                         code(scenario, action, id, removeEnd(command, "\n"));
@@ -799,8 +808,7 @@ public class ScenarioTest {
                                                 """,
                                         pluginName,
                                         pluginBody.getPluginClass(),
-                                        new ObjectMapper()
-                                                .enable(SerializationFeature.INDENT_OUTPUT)
+                                        PRETTY_OBJECT_MAPPER
                                                 .writeValueAsString(pluginBody)));
 
                         code(scenario, action, id, """
@@ -809,12 +817,13 @@ public class ScenarioTest {
                                             --request POST "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
                                             --user 'admin:conduktor' \\
                                             --header 'Content-Type: application/json' \\
-                                            --data-raw '%s' | jq
+                                            --data-raw "$payload" | jq
                                         """,
                                 gatewayHost,
                                 vcluster,
                                 pluginName,
-                                new ObjectMapper().writeValueAsString(pluginBody));
+                                PRETTY_OBJECT_MAPPER.writeValueAsString(pluginBody)
+                        );
                     }
                 }
             }
@@ -1019,8 +1028,7 @@ public class ScenarioTest {
         assertGatewayHost(action);
         if (isBlank(action.getVcluster())) {
             try {
-                System.out.println(new ObjectMapper()
-                        .enable(SerializationFeature.INDENT_OUTPUT)
+                System.out.println(PRETTY_OBJECT_MAPPER
                         .writeValueAsString(action));
             } catch (Exception e) {
                 //
@@ -1101,7 +1109,9 @@ public class ScenarioTest {
                     inputHeaders.add(new RecordHeader(header.getKey(), header.getValue().getBytes()));
                 }
             }
-            KafkaActionUtils.produce(producer, topic, message.getKey(), message.getValue(), inputHeaders);
+            ProducerRecord<String, String> recordRequest = KafkaActionUtils.record(topic, message.getKey(), message.getValue(), (List<Header>) inputHeaders);
+            var recordMetadata = producer.send(recordRequest).get();
+            assertThat(recordMetadata.hasOffset()).isTrue();
         }
     }
 
@@ -1221,7 +1231,7 @@ public class ScenarioTest {
 
     private static boolean satisfies(String data, String expected) {
         try {
-            var dataAsMap = MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
+            var dataAsMap = OBJECT_MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
             });
             var parser = new SpelExpressionParser();
             var context = new StandardEvaluationContext(dataAsMap);

@@ -209,6 +209,8 @@ public class Scenario {
         protected String topic;
         protected Boolean assertError;
         protected List<String> assertErrorMessages = List.of();
+        protected String acks;
+        protected String compression;
 
         @Override
         public String getTitle() {

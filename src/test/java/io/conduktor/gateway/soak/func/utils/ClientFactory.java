@@ -29,7 +29,6 @@ public class ClientFactory implements Closeable {
         return track(new KafkaConsumer<>(properties, new StringDeserializer(), new StringDeserializer()));
     }
 
-
     private <T extends AutoCloseable> T track(T t) {
         closeables.add(t);
         return t;

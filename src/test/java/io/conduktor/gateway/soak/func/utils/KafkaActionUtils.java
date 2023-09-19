@@ -8,12 +8,12 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.header.Header;
 import org.assertj.core.api.Assertions;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * util class to make api call to kafka simpler
@@ -62,15 +62,13 @@ public class KafkaActionUtils {
         }
     }
 
-
     public static <T> void produce(KafkaProducer<String, T> kafkaProducer, String topic, String key, T value, List<Header> headers) throws ExecutionException, InterruptedException {
-        ProducerRecord<String, T> recordRequest = p(topic, key, value, headers);
+        ProducerRecord<String, T> recordRequest = record(topic, key, value, headers);
         var recordMetadata = kafkaProducer.send(recordRequest).get();
         Assertions.assertThat(recordMetadata.hasOffset()).isTrue();
     }
 
-    @NotNull
-    private static <T> ProducerRecord<String, T> p(String topic, String key, T value, List<Header> headers) {
+    public static <T> ProducerRecord<String, T> record(String topic, String key, T value, List<Header> headers) {
         var recordRequest = new ProducerRecord<>(topic, key, value);
         headers.forEach(header -> recordRequest.headers().add(header));
         return recordRequest;

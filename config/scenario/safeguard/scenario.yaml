@@ -99,7 +99,7 @@ actions:
       Let's confirm the 3 cars are there by consuming from the `cars` topic.
 
   - type: DESCRIBE_TOPICS
-    title: Descripe our `cars` topic
+    title: Describe our `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -203,6 +203,57 @@ actions:
     assertError: true
     markdown: |
       Topic updated successfully
+
+  - type: ADD_INTERCEPTORS
+    title: Let's make sure we enforce policies also at produce time!
+    gateway: gateway1
+    interceptors:
+      teamA:
+        guard-on-produce:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.ProducePolicyPlugin"
+          "priority": "100"
+          "config": {
+            "acks": {
+              "value": [
+                -1,
+              ],
+              "action": "BLOCK"
+            },
+            "compressions": {
+              "value": [
+                "NONE",
+                "GZIP"
+              ],
+              "action": "BLOCK"
+            }
+          }
+    markdown: |
+      Let's enforce that messages shall be sent with compression and with the right level of resiliency
+
+  - type: PRODUCE
+    title: Produce sample data to our `cars` topic without the right policies
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: cars
+    acks: 1
+    compression: snappy
+    messages:
+      - value: '{"type":"Fiat","color":"red","price":-1}'
+    assertError: true
+    markdown: |
+      Produce 1 record ... that do not match our policy
+
+  - type: PRODUCE
+    title: Produce sample data to our `cars` topic that complies with our policy
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: cars
+    acks: -1
+    compression: gzip
+    messages:
+      - value: '{"type":"Fiat","color":"red","price":-1}'
+    markdown: |
+      Producing a record matching our policy
 
   - type: DOCKER
     title: Cleanup the docker environment
