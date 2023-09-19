@@ -73,11 +73,12 @@ public class ScenarioTest {
     public static final String TYPE_SH = """
             function type_and_execute() {
               local GREEN="\\033[0;32m"
+              local WHITE='\\033[0;97m'
               local RESET="\\033[0m"
-              local file=$1
+              local file="$1"
               local chars=$(cat $file| wc -c)
 
-              printf "${GREEN}"
+              printf "${WHITE}"
               if [ "$chars" -lt 70 ] ; then
                   cat $file | pv -qL 30
               elif [ "$chars" -lt 100 ] ; then
@@ -91,18 +92,12 @@ public class ScenarioTest {
               fi
               echo "${RESET}"
 
-              . $file
+              sh $file
             }
 
-            type_and_execute $1
+            type_and_execute "$1"
             """;
     public static final String RECORD_ASCIINEMA_SH = """
-            svg-term \\
-              --in asciinema/all.asciinema \\
-              --width 140 --height 20 \\
-              --out images/all.svg \\
-              --window true
-
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing asciinema for $stepSh"
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
@@ -139,6 +134,12 @@ public class ScenarioTest {
               --cols 140 --rows 40 \\
               --command "sh run.sh" \\
               asciinema/all.asciinema
+
+            svg-term \\
+              --in asciinema/all.asciinema \\
+              --width 140 --height 20 \\
+              --out images/all.svg \\
+              --window true
 
             asciinemaUid=$(asciinema upload asciinema/all.asciinema 2>&1 | grep http | awk '{print $1}' | cut -d '/' -f 5)
             gsed -i "s/ASCIINEMA_UID/$asciinemaUid/g" Readme.md
@@ -228,7 +229,7 @@ public class ScenarioTest {
                 }
 
                 function header() {
-                    banner "$WHITE" "$1"
+                    banner "$RED" "$1"
                 }
 
                 function step() {
@@ -239,8 +240,8 @@ public class ScenarioTest {
                     local script=$1
                     local title=$2
                     step "$title"
-                    sh "$script"
-                    sleep 5
+                    sh type.sh "$script"
+                    echo 
                 }
                                 
 
@@ -251,22 +252,36 @@ public class ScenarioTest {
         runScenarioSteps(scenario, actions);
 
         if (scenario.isRecordAscinema()) {
-            log.info("Re-recording the scenario to include bash commands output in Readme");
-            ProcessBuilder commandOutput = new ProcessBuilder();
-            commandOutput.directory(executionFolder);
-            commandOutput.command("sh", "record-output.sh");
-            commandOutput.start().waitFor();
+            executeSh("record-asciinema.sh", true, "Recording asciinema");
         }
 
         if (scenario.isRecordOutput()) {
-            log.info("Recording one more time with asciinema to be fancy");
-            ProcessBuilder recording = new ProcessBuilder();
-            recording.directory(executionFolder);
-            recording.command("sh", "record-asciinema.sh");
-            recording.start().waitFor();
+            executeSh("record-output.sh", true, "Recording outputs");
         }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
+    }
+
+    private void executeSh(String shFile, boolean showOutput, String description) throws IOException, InterruptedException {
+        log.info(description);
+        ProcessBuilder recording = new ProcessBuilder();
+        recording.directory(executionFolder);
+        recording.redirectErrorStream(true);
+        recording.command("sh", shFile);
+        Process process = recording.start();
+        if (showOutput) {
+            showProcessOutput(process);
+        }
+        process.waitFor();
+    }
+
+    private void showProcessOutput(Process process) throws InterruptedException, IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+        }
     }
 
     File createDirectory(String first, String... more) {
@@ -409,8 +424,8 @@ public class ScenarioTest {
                         """
                                 token=$(curl \\
                                     --silent \\
-                                    --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
                                     --user 'admin:conduktor' \\
+                                    --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
                                     --header 'Content-Type: application/json' \\
                                     --data-raw '{"lifeTimeSeconds": 7776000}' | jq -r ".token")
 
@@ -662,8 +677,8 @@ public class ScenarioTest {
                 code(scenario, action, id, """
                                 curl \\
                                   --silent \\
-                                  --user "admin:conduktor" \\
-                                  --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s' | jq
+                                  --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s' \\
+                                  --user "admin:conduktor" | jq
                                 """,
                         gatewayHost,
                         action.from,
@@ -781,8 +796,9 @@ public class ScenarioTest {
                 }
                 code(scenario, action, id, """
                                 curl \\
-                                    -u "admin:conduktor" \\
+                                    --silent \\
                                     --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
+                                    --user "admin:conduktor" \\
                                     --header 'Content-Type: application/json' | jq
                                 """,
                         gatewayHost,
@@ -855,13 +871,11 @@ public class ScenarioTest {
                 }
 
                 code(scenario, action, id, removeEnd(expandedScript, "\n"));
-                File scriptFile = new File(executionFolder + "/step-" + id + ".sh");
-                writeStringToFile(scriptFile, ("echo 'Step " + id + " " + action.getType() + " " + trimToEmpty(action.getTitle()) + "'\n") + action.getScript(), defaultCharset());
 
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
                 processBuilder.directory(executionFolder);
-                processBuilder.command("sh", scriptFile.getAbsolutePath());
+                processBuilder.command("sh", "step-" + id + "-" + action.getType() + ".sh");
                 processBuilder.redirectErrorStream(true);
                 processBuilder.environment().putAll(env);
                 Process process = processBuilder.start();
@@ -1146,10 +1160,10 @@ public class ScenarioTest {
 
         String step = "step-" + id + "-" + action.getType();
         appendTo("run.sh", format("""
-                        execute '%s' '%s.sh'
+                        execute "%s.sh" "%s"
                         """,
                 step,
-                action.getTitle()));
+                action.getTitle().replace("`", "\\`")));
         appendTo(step + ".sh", format(format, args));
 
         appendTo("/Readme.md",
