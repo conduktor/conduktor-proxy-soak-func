@@ -54,6 +54,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ProduceAction.class, name = "PRODUCE"),
             @JsonSubTypes.Type(value = ConsumeAction.class, name = "CONSUME"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
+            @JsonSubTypes.Type(value = AlterTopicAction.class, name = "CREATE_TOPICS"),
             @JsonSubTypes.Type(value = CreateVirtualClustersAction.class, name = "CREATE_VIRTUAL_CLUSTERS"),
             @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
             @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
@@ -166,6 +167,35 @@ public class Scenario {
             }
             return "Creating topics " + topics.stream()
                     .map(CreateTopicRequest::getName)
+                    .collect(joining(",", "`", "`"));
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AlterTopicAction extends KafkaAction {
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static final class AlterTopicRequest {
+            private String name;
+            private LinkedHashMap<String, String> config = new LinkedHashMap<>();
+        }
+
+        private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        private List<AlterTopicRequest> topics;
+        private boolean assertError = false;
+        private List<String> assertErrorMessages = new ArrayList<>();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Alter topics " + topics.stream()
+                    .map(AlterTopicRequest::getName)
                     .collect(joining(",", "`", "`"));
         }
     }
@@ -458,6 +488,7 @@ public class Scenario {
         ADD_TOPIC_MAPPING,
         LIST_TOPICS,
         DESCRIBE_TOPICS,
+        ALTER_TOPIC,
         PRODUCE,
         CONSUME,
         ADD_INTERCEPTORS,

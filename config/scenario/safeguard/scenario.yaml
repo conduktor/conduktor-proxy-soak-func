@@ -1,0 +1,212 @@
+title: Safeguard
+services:
+  kafka1:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka2:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka3:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  gateway1:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8888
+  gateway2:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8889
+
+actions:
+  - type: INTRODUCTION
+    title: What is a safeguard?
+    markdown: |
+      Enforce your rules where it matters
+      
+      Safeguard ensures that your teams follow your rules and can't break convention. 
+      
+      Enable your teams, prevent common mistakes, protect your infra. 
+
+  - type: ASCIINEMA
+
+  - type: FILE
+    title: Review the docker compose environment
+    filename: docker-compose.yaml
+    markdown: |
+      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
+      
+      * A single Zookeeper Server
+      * A main 3 nodes Kafka cluster
+      * A 2 nodes Conduktor Gateway server
+
+  - type: DOCKER
+    title: Start the docker environment
+    command: docker compose up -d --wait
+    markdown: Start your docker environment
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    title: Create `teamA` virtual cluster
+    gateway: gateway1
+    name: teamA
+
+  - type: FILE
+    title: Review the kafka properties to connect to `teamA`
+    filename: teamA-sa.properties
+
+  - type: CREATE_TOPICS
+    title: Create the `cars` topic
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: cars
+        replicationFactor: 1
+        partitions: 1
+
+  - type: PRODUCE
+    title: Produce sample data to our `cars` topic
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: cars
+    messages:
+      - value: '{"type":"Ferrari","color":"red","price":10000}'
+      - value: '{"type":"RollsRoyce","color":"black","price":9000}'
+      - value: '{"type":"Mercedes","color":"black","price":6000}'
+    markdown: |
+      Produce 3 records to the cars topic.
+
+  - type: CONSUME
+    title: Consume the `cars` topic
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: cars
+    maxMessages: 3
+    assertSize: 3
+    markdown: |
+      Let's confirm the 3 cars are there by consuming from the `cars` topic.
+
+  - type: DESCRIBE_TOPICS
+    title: Descripe our `cars` topic
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - cars
+    markdown: |
+      Replication factor is 1? 
+      
+      This is bad: we can lose data!
+
+  - type: ADD_INTERCEPTORS
+    title: Safeguard the creation of topics
+    gateway: gateway1
+    interceptors:
+      teamA:
+        guard-on-create-topic:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.CreateTopicPolicyPlugin"
+          "priority": "100"
+          "config": {
+            "replicationFactor": {
+              "min": 2,
+              "max": 2,
+              "action": "BLOCK"
+            },
+            "numPartition": {
+              "min": 1,
+              "max": 3,
+              "action": "BLOCK"
+            }
+          }
+    markdown: |
+      Let's make sure this problem never repeats itself.
+      
+      ... and while we're at it, let's make sure we don't abuse partitions either
+
+  - type: LIST_INTERCEPTORS
+    title: List the interceptors
+    gateway: gateway1
+    vcluster: teamA
+    assertSize: 1
+    assertNames:
+      - guard-on-create-topic
+
+  - type: CREATE_TOPICS
+    title: Create a topic that is not within policy
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: roads
+        replicationFactor: 1
+        partitions: 100
+    assertError: true
+    markdown: |
+      Topic creation is denied by our policy
+
+  - type: CREATE_TOPICS
+    title: Let's now create it again, with parameters within our policy
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: roads
+        replicationFactor: 2
+        partitions: 3
+    markdown: |
+      Perfect, it has been created
+
+  - type: ADD_INTERCEPTORS
+    title: Let's make sure we enforce policies when we alter topics too
+    gateway: gateway1
+    interceptors:
+      teamA:
+        guard-on-create-topic:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.AlterTopicConfigPolicyPlugin"
+          "priority": "100"
+          "config": {
+            "minRetentionMs": 86400000,
+            "maxRetentionMs": 432000000
+          }
+    markdown: |
+      Let's enforce that retention can only be between 1 and 5 days
+
+  - type: ALTER_TOPICS
+    title: Update 'cars' with a retention of 60 days
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: roads
+        config:
+          "retention.ms": 5184000000
+    assertError: true
+    markdown: |
+      Altering the topic is denied by our policy
+
+  - type: ALTER_TOPICS
+    title: Update 'cars' with a retention of 3 days
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: roads
+        config:
+          "retention.ms": 259200000
+    assertError: true
+    markdown: |
+      Topic updated successfully
+
+  - type: DOCKER
+    title: Cleanup the docker environment
+    command: docker compose down -v
+    markdown: Remove all components from docker
+
+  - type: CONCLUSION
+    title: Conclusion
+    markdown: |
+      SQL topic is really a game changer!

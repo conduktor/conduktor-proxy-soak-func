@@ -1,4 +1,4 @@
-title: SQL Topics
+title: Safeguard
 services:
   kafka1:
     properties:
@@ -30,17 +30,13 @@ services:
 
 actions:
   - type: INTRODUCTION
-    title: What is a SQL topic?
+    title: What is a safeguard?
     markdown: |
-      Conduktor Gateway's sql topics allow you to create a *virtual* instance of an existing Kafka topic based on an *sql* request.
-            
-      I may have a topic 'cars' that contains information on cars of all colors, and an application that is only interested in *red* cars. 
+      Enforce your rules where it matters
       
-      To satisfy this requirement I can create a virtual topic `red-car` which a sql statement satisfies exactly that:
+      Safeguard ensures that your teams follow your rules and can't break convention. 
       
-      ```sql
-      SELECT type, price as money FROM cars WHERE color = 'red'
-      ```
+      Enable your teams, prevent common mistakes, protect your infra. 
 
   - type: ASCIINEMA
 
@@ -152,6 +148,30 @@ actions:
       Let's consume from our virtual topic `red-cars`.
 
       You now see only one car, the red one, please note that its format changed according to our SQL statement's projection.
+
+      If you are wondering if you can be a bit more fancy, the answer is ... yes!
+
+  - type: STEP
+    title: Can we do more with SQL?
+    markdown: |
+      Yes! We sure can.
+      
+      ```sql
+      SELECT
+        type,
+        price as newPriceName,
+        color,
+        CASE
+          WHEN color = 'red' AND price > 1000 THEN 'Exceptional'
+          WHEN price > 8000 THEN 'Luxury'
+          ELSE 'Regular'
+        END as quality,
+        record.offset as record_offset,
+        record.partition as record_partition
+      FROM cars
+      ```
+      
+      is an example where you mix projection, case, renaming, and kafka metadata.
 
   - type: DOCKER
     title: Cleanup the docker environment

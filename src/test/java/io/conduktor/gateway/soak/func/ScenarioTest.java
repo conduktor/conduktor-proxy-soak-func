@@ -523,6 +523,13 @@ public class ScenarioTest {
                     }
                 }
             }
+            case ALTER_TOPIC -> {
+                var action = ((Scenario.AlterTopicAction) _action);
+                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
+
+
+                }
+            }
             case DESCRIBE_TOPICS -> {
                 var action = ((Scenario.DescribeTopicsAction) _action);
                 try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
