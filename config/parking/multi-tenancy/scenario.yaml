@@ -65,17 +65,14 @@ actions:
       - _topicMappings
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create the virtual cluster `london`
     gateway: gateway1
     name: london
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create the virtual cluster `paris`
     gateway: gateway1
     name: paris
 
   - type: CREATE_TOPICS
-    title: Create the topic `london`
     kafka: london
     kafkaConfig: london-sa.properties
     topics:
@@ -84,7 +81,6 @@ actions:
         partitions: 1
 
   - type: CREATE_TOPICS
-    title: Create the topic `Paris`
     kafka: paris
     kafkaConfig: paris-sa.properties
     topics:
@@ -264,6 +260,6 @@ actions:
     markdown: Remove all components from docker
 
   - type: CONCLUSION
-    title: Conclusion
-    markdown: Multi-tenancy/Virtual clusters are key to be in control of your kafka spend!
+    markdown: |
+      Multi-tenancy/Virtual clusters is key to be in control of your kafka spend!
 

@@ -93,12 +93,10 @@ actions:
     showOutput: true
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Let's create the virtual cluster `teamA`
     gateway: gateway1
     name: teamA
 
   - type: CREATE_TOPICS
-    title: Create the `customer-shredding` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -154,7 +152,6 @@ actions:
     }
 
   - type: LIST_INTERCEPTORS
-    title: List gateway interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 1
@@ -218,7 +215,6 @@ actions:
     }
 
   - type: LIST_INTERCEPTORS
-    title: List gateway interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 2

@@ -119,6 +119,14 @@ public class Scenario {
         protected Integer assertSize;
         protected List<String> assertExists = List.of();
         protected List<String> assertDoesNotExist = List.of();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Listing topics in `" + kafka + "`";
+        }
     }
 
 
@@ -138,6 +146,18 @@ public class Scenario {
         }
 
         protected List<DescribeTopicsActionAssertions> assertions = List.of();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Describing topic" +
+                    (topics.isEmpty() ? "" : "s")
+                    + " " + topics
+                    .stream()
+                    .collect(joining(",", "`", "`"));
+        }
     }
 
     @Data
@@ -165,9 +185,32 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Creating topics " + topics.stream()
+            return "Creating topic" +
+                    (topics.isEmpty() ? "" : "s")
+                    + " " + topics
+                    .stream()
                     .map(CreateTopicRequest::getName)
                     .collect(joining(",", "`", "`"));
+        }
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            String markdown = "Creating topic" +
+                    (topics.isEmpty() ? "" : "s")
+                    + " " + topics
+                    .stream()
+                    .map(CreateTopicRequest::getName)
+                    .collect(joining(",", "`", "`"))
+                    + " on `" + kafka + "`\n";
+
+            for (CreateTopicRequest topic : topics) {
+                markdown += "* " + topic.getName() + " nbPartitions:" + topic.getPartitions() + " replicationFactor:" + topic.getReplicationFactor();
+            }
+
+            return markdown;
         }
     }
 
@@ -217,7 +260,16 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Producing " + messages.size() + (messages.size() == 1 ? "" : "s") + " messages in " + topic;
+            return "Producing " + messages.size() + "message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "`";
+        }
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+
+            return "Producing " + messages.size() + " message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "` in cluster `" + kafka + "`";
         }
     }
 
@@ -241,7 +293,14 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Consuming from " + topic;
+            return "Consuming from `" + topic + "`";
+        }
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            return "Consuming from `" + topic + "` in cluster `" + kafka + "";
         }
     }
 
@@ -257,9 +316,16 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Creating virtual topic `" + name + "`";
+            return "Creating virtual cluster `" + name + "`";
         }
 
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            return "Creating virtual cluster `" + name + "` on gateway `" + gateway + "`";
+        }
     }
 
     @Data
@@ -325,7 +391,14 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Creating mapping `" + topicPattern + "` to `" + physicalTopicName + "`";
+            return "Creating mapping from `" + topicPattern + "` to `" + physicalTopicName + "`";
+        }
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            return "Creating mapping from `" + topicPattern + "` to `" + physicalTopicName + "` in gateway `" + gateway + "`";
         }
 
         @Data
@@ -352,7 +425,15 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Listing interceptors on `" + gateway + "`";
+            return "Listing interceptors for `" + vcluster + "`";
+        }
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            return "Listing interceptors on `" + gateway + "` for virtual cluster `" + vcluster + "`";
         }
     }
 
@@ -435,6 +516,7 @@ public class Scenario {
     @AllArgsConstructor
     public static class ShAction extends CommandAction {
         public String script;
+        public int iteration = 1;
 
         @Override
         public String getCommand() {
@@ -442,7 +524,6 @@ public class Scenario {
         }
 
     }
-
 
     @Data
     @NoArgsConstructor

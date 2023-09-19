@@ -60,7 +60,6 @@ actions:
     markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
@@ -77,7 +76,6 @@ actions:
         partitions: 5
 
   - type: ADD_TOPIC_MAPPING
-    title: Create a topic mapping
     gateway: gateway1
     vcluster: teamA
     physicalTopicName: hold-many-concentrated-topics
@@ -176,7 +174,6 @@ actions:
       - concentrated-topic-with-100-partitions
 
   - type: PRODUCE
-    title: Produce message into `concentrated-topic-with-10-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
@@ -184,7 +181,6 @@ actions:
       - value: '{"type": "Sports", "price": 75, "color": "blue"}'
 
   - type: CONSUME
-    title: Consume the message from `concentrated-topic-with-10-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-10-partitions
@@ -197,7 +193,6 @@ actions:
           expected: '{"type": "Sports", "price": 75, "color": "blue"}'
 
   - type: PRODUCE
-    title: Produce message into `concentrated-topic-with-100-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
@@ -205,7 +200,6 @@ actions:
       - value: '{"msg":"hello world"}'
 
   - type: CONSUME
-    title: Consume the message from `concentrated-topic-with-100-partitions`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
@@ -227,7 +221,6 @@ actions:
     markdown: Remove all components from docker
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       Infinite partitions with topic concentration is really a game changer!
 

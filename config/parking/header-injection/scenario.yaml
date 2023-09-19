@@ -55,7 +55,6 @@ actions:
     markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
@@ -64,7 +63,6 @@ actions:
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
-    title: Create the `users` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -207,4 +205,5 @@ actions:
   - type: CONCLUSION
     title: Conclusion
     markdown: |
+      Leveraging headers in Kafka is of tremendous help!
       

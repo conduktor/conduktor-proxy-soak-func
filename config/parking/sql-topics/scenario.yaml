@@ -56,7 +56,6 @@ actions:
     markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
@@ -65,7 +64,6 @@ actions:
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
-    title: Create the `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -74,7 +72,6 @@ actions:
         partitions: 1
 
   - type: PRODUCE
-    title: Produce sample data to our `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: cars
@@ -88,7 +85,6 @@ actions:
       * A red car
 
   - type: CONSUME
-    title: Consume the `cars` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: cars
@@ -122,7 +118,6 @@ actions:
       Let's create the interceptor to filter out the red cars from the `cars` topic.
 
   - type: LIST_INTERCEPTORS
-    title: List the virtual topic interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 1

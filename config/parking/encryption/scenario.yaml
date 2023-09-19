@@ -52,7 +52,6 @@ actions:
     markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
@@ -61,7 +60,6 @@ actions:
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
-    title: Create the `customers` topic
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -98,7 +96,6 @@ actions:
       We want to encrypt only two fields, with an in memory KMS.
 
   - type: LIST_INTERCEPTORS
-    title: List the interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 1
@@ -163,7 +160,6 @@ actions:
     }
 
   - type: LIST_INTERCEPTORS
-    title: List gateway interceptors
     gateway: gateway1
     vcluster: teamA
     assertSize: 2

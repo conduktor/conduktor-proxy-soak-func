@@ -65,7 +65,6 @@ actions:
     name: teamA
 
   - type: CREATE_TOPICS
-    title: Create the topic `london`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:
@@ -76,7 +75,6 @@ actions:
           cleanup.policy: compact
 
   - type: ADD_TOPIC_MAPPING
-    title: Create a topic mapping
     gateway: gateway1
     vcluster: teamA
     physicalTopicName: concentrated
@@ -322,5 +320,4 @@ actions:
     markdown: Remove all components from docker
 
   - type: CONCLUSION
-    title: Conclusion
-    markdown: Sainbury is a key customer, let's make sure we serve them well
+    markdown: Sainsbury is a key customer, let's make sure we serve them well

@@ -65,7 +65,6 @@ actions:
     name: teamA
 
   - type: ADD_TOPIC_MAPPING
-    title: Create a topic mapping
     gateway: gateway1
     vcluster: teamA
     physicalTopicName: concentrated

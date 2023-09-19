@@ -288,8 +288,7 @@ public class ScenarioTest {
     }
 
     private void executeSh(boolean showOutput, String description, String... command) throws IOException, InterruptedException {
-        log.info("Executing {}", command);
-        log.info(description);
+        log.info("{} {}", description, Arrays.stream(command).collect(joining(" ")));
         ProcessBuilder recording = new ProcessBuilder();
         recording.directory(executionFolder);
         recording.redirectErrorStream(true);
@@ -964,37 +963,42 @@ public class ScenarioTest {
 
                 code(scenario, action, id, removeEnd(expandedScript, "\n"));
 
-
-                ProcessBuilder processBuilder = new ProcessBuilder();
-                processBuilder.directory(executionFolder);
-                processBuilder.command("sh", "step-" + id + "-" + action.getType() + ".sh");
-                processBuilder.redirectErrorStream(true);
-                processBuilder.environment().putAll(env);
-                Process process = processBuilder.start();
-
-
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String ret = "";
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        ret = ret + line + "\n";
+                for (int iteration = 0; iteration < action.getIteration(); iteration++) {
+                    String script = "step-" + id + "-" + action.getType() + ".sh";
+                    if (iteration>0) {
+                        log.info("Iteration {}/{} for {}", iteration, action.getIteration(), script);
                     }
-                    int exitCode = process.waitFor();
+                    ProcessBuilder processBuilder = new ProcessBuilder();
+                    processBuilder.directory(executionFolder);
+                    processBuilder.command("sh", script);
+                    processBuilder.redirectErrorStream(true);
+                    processBuilder.environment().putAll(env);
+                    Process process = processBuilder.start();
 
-                    if (action.showOutput) {
-                        log.info(ret);
-                    }
-                    if (action.assertExitCode != null) {
-                        assertThat(exitCode)
-                                .isEqualTo(action.assertExitCode);
-                    }
-                    if (!action.assertOutputContains.isEmpty()) {
-                        assertThat(ret)
-                                .contains(action.assertOutputContains);
-                    }
-                    if (!action.assertOutputDoesNotContain.isEmpty()) {
-                        assertThat(ret)
-                                .doesNotContain(action.assertOutputDoesNotContain);
+
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                        String ret = "";
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            ret = ret + line + "\n";
+                        }
+                        int exitCode = process.waitFor();
+
+                        if (action.showOutput) {
+                            log.info(ret);
+                        }
+                        if (action.assertExitCode != null) {
+                            assertThat(exitCode)
+                                    .isEqualTo(action.assertExitCode);
+                        }
+                        if (!action.assertOutputContains.isEmpty()) {
+                            assertThat(ret)
+                                    .contains(action.assertOutputContains);
+                        }
+                        if (!action.assertOutputDoesNotContain.isEmpty()) {
+                            assertThat(ret)
+                                    .doesNotContain(action.assertOutputDoesNotContain);
+                        }
                     }
                 }
             }

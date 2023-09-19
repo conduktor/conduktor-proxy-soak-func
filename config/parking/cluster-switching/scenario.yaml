@@ -221,7 +221,6 @@ actions:
     markdown: Start your docker environment
 
   - type: CREATE_VIRTUAL_CLUSTERS
-    title: Create `teamA` virtual cluster
     gateway: gateway1
     name: teamA
 
@@ -230,7 +229,6 @@ actions:
     filename: teamA-sa.properties
 
   - type: CREATE_TOPICS
-    title: Create topic `users`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topics:

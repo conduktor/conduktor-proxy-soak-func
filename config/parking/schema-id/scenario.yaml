@@ -152,5 +152,5 @@ actions:
     markdown: Remove all components from docker
 
   - type: CONCLUSION
-    title: Conclusion
-    markdown: You can now make sure you don't fall because of a wrong message
+    markdown: |
+      You can now make sure you don't fall because of a wrong message
