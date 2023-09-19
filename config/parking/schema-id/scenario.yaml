@@ -108,14 +108,15 @@ actions:
     kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
-      PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       echo '{
           "name": "conduktor",
           "username": "test@conduktor.io",
           "password": "password1",
           "visa": "visa123456",
           "address": "Conduktor Towers, London"
-      }' | jq -c | kafka-json-schema-console-producer  \
+      }' | \
+        jq -c | \
+            kafka-json-schema-console-producer  \
               --bootstrap-server ${BOOTSTRAP_SERVERS} \
               --producer.config ${KAFKA_CONFIG_FILE} \
               --topic users \

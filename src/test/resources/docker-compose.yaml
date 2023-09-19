@@ -102,6 +102,11 @@ services:
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
       SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry
+    volumes:
+      - type: bind
+        source: .
+        target: /clientConfig
+        read_only: true
     depends_on:
       kafka1:
         condition: service_healthy

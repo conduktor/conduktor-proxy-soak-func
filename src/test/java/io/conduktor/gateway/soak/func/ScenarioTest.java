@@ -103,7 +103,7 @@ public class ScenarioTest {
             """;
     public static final String RECORD_ASCIINEMA_SH = """
             for stepSh in $(ls step*sh | sort ) ; do
-                echo "Processing asciinema for $stepSh"
+                echo "Processing asciinema for $stepSh " `date`
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
                 rows=20
 
@@ -170,7 +170,7 @@ public class ScenarioTest {
             """;
     public static final String RECORD_COMMAND_SH = """
             for stepSh in $(ls step*sh | sort ) ; do
-                echo "Processing $stepSh"
+                echo "Processing $stepSh " `date`
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
                 sh -x $stepSh > output/$step.txt 2>&1
 
@@ -276,23 +276,24 @@ public class ScenarioTest {
         appendTo("record-asciinema.sh", format(RECORD_ASCIINEMA_SH, scenario.getTitle()));
         runScenarioSteps(scenario, actions);
 
-        if (scenario.getRecordAscinema()) {
-            executeSh("record-asciinema.sh", true, "Recording asciinema");
+        if (scenario.getRecordOutput()) {
+            executeSh(true, "Recording outputs", "sh", "record-output.sh");
         }
 
-        if (scenario.getRecordOutput()) {
-            executeSh("record-output.sh", true, "Recording outputs");
+        if (scenario.getRecordAscinema()) {
+            executeSh(true, "Recording asciinema", "sh", "record-asciinema.sh");
         }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }
 
-    private void executeSh(String shFile, boolean showOutput, String description) throws IOException, InterruptedException {
+    private void executeSh(boolean showOutput, String description, String... command) throws IOException, InterruptedException {
+        log.info("Executing {}", command);
         log.info(description);
         ProcessBuilder recording = new ProcessBuilder();
         recording.directory(executionFolder);
         recording.redirectErrorStream(true);
-        recording.command("sh", shFile);
+        recording.command(command);
         Process process = recording.start();
         if (showOutput) {
             showProcessOutput(process);
@@ -331,7 +332,7 @@ public class ScenarioTest {
 
     private void step(Map<String, Properties> services, ClientFactory clientFactory, int _id, Scenario.Action _action) throws Exception {
         String id = format("%02d", _id);
-        log.info("[" + id + "] Executing " + _action.simpleMessage());
+        log.info("[" + id + "] " + _action.simpleMessage());
 
         appendTo("Readme.md",
                 format("""
@@ -344,8 +345,12 @@ public class ScenarioTest {
                         trimToEmpty(_action.getMarkdown())));
 
         switch (_action.getType()) {
-            case INTRODUCTION, CONCLUSION, STEP, ASCIINEMA -> {
+            case CONCLUSION, STEP, ASCIINEMA -> {
                 //
+            }
+            case INTRODUCTION -> {
+                executeSh(false, "Starting docker behind the scene, to have a smoorth recording",
+                        "docker", "compose", "up", "-d", "--wait");
             }
             case FILE -> {
                 var action = ((Scenario.FileAction) _action);
@@ -817,12 +822,12 @@ public class ScenarioTest {
                                             --request POST "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
                                             --user 'admin:conduktor' \\
                                             --header 'Content-Type: application/json' \\
-                                            --data-raw "$payload" | jq
+                                            --data-raw '%s' | jq
                                         """,
                                 gatewayHost,
                                 vcluster,
                                 pluginName,
-                                PRETTY_OBJECT_MAPPER.writeValueAsString(pluginBody)
+                                OBJECT_MAPPER.writeValueAsString(pluginBody)
                         );
                     }
                 }

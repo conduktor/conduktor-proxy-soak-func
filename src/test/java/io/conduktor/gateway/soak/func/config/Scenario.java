@@ -420,7 +420,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static abstract class CommandAction extends KafkaAction {
-        public boolean showOutput = false;
+        public boolean showOutput = true;
         public boolean isDaemon = false;
         public Integer assertError;
         public Integer assertExitCode;

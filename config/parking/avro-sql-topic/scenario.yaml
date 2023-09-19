@@ -79,14 +79,7 @@ actions:
     kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
-      PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
-      echo '{"type":"Sports","price":75,"color":"blue"}' | \
-          kafka-avro-console-producer  \
-              --bootstrap-server ${BOOTSTRAP_SERVERS} \
-              --producer.config ${KAFKA_CONFIG_FILE} \
-              --topic cars \
-              --property schema.registry.url=http://localhost:8081 \
-              --property value.schema='{
+      schema='{
                   "type": "record",
                   "name": "car",
                   "fields": [
@@ -95,6 +88,13 @@ actions:
                     {"name": "color", "type": "string"}
                   ]
                 }'
+      echo '{"type":"Sports","price":75,"color":"blue"}' | \
+          kafka-avro-console-producer  \
+              --bootstrap-server ${BOOTSTRAP_SERVERS} \
+              --producer.config ${KAFKA_CONFIG_FILE} \
+              --topic cars \
+              --property schema.registry.url=http://localhost:8081 \
+              --property "value.schema=$schema"
       
       echo '{"type":"SUV","price":55,"color":"red"}' | \
           kafka-avro-console-producer  \
@@ -102,15 +102,7 @@ actions:
               --producer.config ${KAFKA_CONFIG_FILE} \
               --topic cars \
               --property schema.registry.url=http://localhost:8081 \
-              --property value.schema='{
-                  "type": "record",
-                  "name": "car",
-                  "fields": [
-                    {"name": "type", "type": "string"},
-                    {"name": "price", "type": "long"},
-                    {"name": "color", "type": "string"}
-                  ]
-                }'
+              --property "value.schema=$schema"
       
   - type: SH
     title: Consume the avro payload back
@@ -118,14 +110,13 @@ actions:
     kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
-      PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
           --consumer.config ${KAFKA_CONFIG_FILE} \
           --topic cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
-          --max-messages 2
+          --max-messages 2 2>&1 | grep "{" | jq
 
   - type: CREATE_TOPICS
     kafka: teamA
@@ -164,14 +155,13 @@ actions:
     kafkaConfig: teamA-sa.properties
     showOutput: true
     script: |
-      PATH=$PATH:/Users/framiere/confluent-7.4.1/bin
       kafka-avro-console-consumer  \
           --bootstrap-server ${BOOTSTRAP_SERVERS} \
           --consumer.config ${KAFKA_CONFIG_FILE} \
           --topic red-cars \
           --property schema.registry.url=http://localhost:8081 \
           --from-beginning \
-          --max-messages 1 | grep "{" | jq
+          --max-messages 1 2>&1 | grep "{" | jq
     assertOutputDoesNotContain:
       - blue
     assertOutputContains:
