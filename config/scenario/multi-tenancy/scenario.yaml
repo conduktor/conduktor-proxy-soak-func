@@ -111,7 +111,7 @@ actions:
     kafkaConfig: london-sa.properties
     topic: londonTopic
     messages:
-      - value: 'testMessageLondon'
+      - value: '{"message: "Hello from London"}'
 
   - type: CONSUME
     kafka: london
@@ -124,7 +124,7 @@ actions:
     kafkaConfig: paris-sa.properties
     topic: parisTopic
     messages:
-      - value: 'testMessageParis'
+      - value: '{"message: "Bonjour depuis Paris"}'
 
   - type: CONSUME
     kafka: paris
@@ -143,7 +143,7 @@ actions:
     kafka: kafka1
     topic: existingLondonTopic
     messages:
-      - value: 'existingLondonMessage'
+      - value: '{"message: "Hello from London"}'
 
   - type: SH
     kafka: kafka1
@@ -178,7 +178,7 @@ actions:
     kafka: kafka1
     topic: existingSharedTopic
     messages:
-      - value: 'existingSharedMessage'
+      - value: '{"message": "Existing shared message"}'
 
   - type: SH
     showOutput: true
@@ -212,7 +212,7 @@ actions:
       - description: Assert contains the original london topic message
         value:
           operator: contains
-          expected: 'existingLondonMessage'
+          expected: '{"message: "Hello from London"}'
 
   - type: CONSUME
     kafka: london
@@ -223,7 +223,7 @@ actions:
       - description: Assert contains the original shared topic message
         value:
           operator: containsIgnoreCase
-          expected: 'existingSharedMessage'
+          expected: '{"message": "Existing shared message"}'
 
   - type: SH
     showOutput: true
@@ -256,7 +256,7 @@ actions:
       - description: Assert contains the original shared topic message
         value:
           operator: containsIgnoreCase
-          expected: 'existingSharedMessage'
+          expected: '{"message": "Existing shared message"}'
 
   - type: DOCKER
     title: Cleanup the docker environment
