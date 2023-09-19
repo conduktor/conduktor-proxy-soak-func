@@ -250,17 +250,21 @@ public class ScenarioTest {
         appendTo("record-asciinema.sh", format(RECORD_ASCIINEMA_SH, scenario.getTitle()));
         runScenarioSteps(scenario, actions);
 
-        log.info("Re-recording the scenario to include bash commands output in Readme");
-        ProcessBuilder commandOutput = new ProcessBuilder();
-        commandOutput.directory(executionFolder);
-        commandOutput.command("sh", "record-output.sh");
-        commandOutput.start().waitFor();
+        if (scenario.isRecordAscinema()) {
+            log.info("Re-recording the scenario to include bash commands output in Readme");
+            ProcessBuilder commandOutput = new ProcessBuilder();
+            commandOutput.directory(executionFolder);
+            commandOutput.command("sh", "record-output.sh");
+            commandOutput.start().waitFor();
+        }
 
-        log.info("Recording one more time with asciinema to be fancy");
-        ProcessBuilder recording = new ProcessBuilder();
-        recording.directory(executionFolder);
-        recording.command("sh", "record-asciinema.sh");
-        recording.start().waitFor();
+        if (scenario.isRecordOutput()) {
+            log.info("Recording one more time with asciinema to be fancy");
+            ProcessBuilder recording = new ProcessBuilder();
+            recording.directory(executionFolder);
+            recording.command("sh", "record-asciinema.sh");
+            recording.start().waitFor();
+        }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }

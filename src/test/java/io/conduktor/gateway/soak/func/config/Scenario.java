@@ -15,6 +15,8 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 @AllArgsConstructor
 public class Scenario {
     private String title;
+    private boolean recordAscinema = true;
+    private boolean recordOutput = true;
     private Map<String, Service> services;
     private LinkedList<Action> actions;
 
