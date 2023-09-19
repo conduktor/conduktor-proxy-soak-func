@@ -234,6 +234,15 @@ public class ScenarioTest {
                 function step() {
                     banner "$BLUE" "$1"
                 }
+                                
+                function execute() {
+                    local script=$1
+                    local title=$2
+                    step "$title"
+                    sh "$script"
+                    sleep 5
+                }
+                                
 
                 """);
         appendTo("type.sh", TYPE_SH);
@@ -267,6 +276,7 @@ public class ScenarioTest {
     private void runScenarioSteps(Scenario scenario, LinkedList<Scenario.Action> actions) throws Exception {
         Map<String, Properties> services = scenario.toServiceProperties();
         this.scenario = scenario;
+        appendTo("run.sh", "header '" + scenario.getTitle() + "'\n");
         try (var clientFactory = new ClientFactory()) {
             int id = 0;
             for (var _action : actions) {
@@ -343,16 +353,16 @@ public class ScenarioTest {
                         .statusCode(SC_OK);
 
                 code(scenario, action, id, """
-                                      curl \\
-                                        --silent \\
-                                        --user "admin:conduktor" \\
-                                        --request POST '%s/admin/vclusters/v1/vcluster/%s/topics/%s' \\
-                                        --header 'Content-Type: application/json' \\
-                                        --data-raw '{
-                                            "physicalTopicName": "%s",
-                                            "readOnly": false,
-                                            "concentrated": true
-                                          }' | jq
+                                curl \\
+                                    --silent \\
+                                    --user "admin:conduktor" \\
+                                    --request POST '%s/admin/vclusters/v1/vcluster/%s/topics/%s' \\
+                                    --header 'Content-Type: application/json' \\
+                                    --data-raw '{
+                                        "physicalTopicName": "%s",
+                                        "readOnly": false,
+                                        "concentrated": true
+                                    }' | jq
                                 """,
                         gateway,
                         vcluster,
@@ -391,7 +401,8 @@ public class ScenarioTest {
 
                 savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
-                code(scenario, action, id, """
+                code(scenario, action, id,
+                        """
                                 token=$(curl \\
                                     --silent \\
                                     --request POST "%s/admin/vclusters/v1/vcluster/%s/username/%s" \\
@@ -1131,12 +1142,10 @@ public class ScenarioTest {
 
         String step = "step-" + id + "-" + action.getType();
         appendTo("run.sh", format("""
-                        step '%s'
-                        sh %s.sh
-
+                        execute '%s' '%s.sh'
                         """,
-                action.getTitle(),
-                step));
+                step,
+                action.getTitle()));
         appendTo(step + ".sh", format(format, args));
 
         appendTo("/Readme.md",

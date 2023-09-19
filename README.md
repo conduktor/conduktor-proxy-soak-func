@@ -2,6 +2,16 @@
 
 Testing your Conduktor Gateway by your own scenario (yaml file in config/scenario directory)
 
+## Requirements
+
+`brew install agg asciinema gsed`
+
+`asciinema`: record script execution
+`agg`: convert asciinema recording to gif
+`svg-term`: convert asciinema recording to svg
+`gsed`: gnu sed on mac
+
+
 ## Scenario YAML File Description
 
 The [scenario3.yaml](config/scenario/sqd/scenario3.yaml) file in this config/scenario folder repository is a configuration
