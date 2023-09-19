@@ -29,7 +29,6 @@ services:
       gateway.host: http://localhost:8889
 
 actions:
-
   - type: INTRODUCTION
     title: What is a SQL topic?
     markdown: |

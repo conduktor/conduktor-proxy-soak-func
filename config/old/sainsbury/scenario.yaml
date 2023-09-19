@@ -40,6 +40,11 @@ services:
 
 actions:
 
+  - type: INTRODUCTION
+    title: Sainsbury reproduction model
+
+  - type: ASCIINEMA
+
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml

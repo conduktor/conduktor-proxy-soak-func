@@ -30,6 +30,11 @@ services:
 
 actions:
 
+  - type: INTRODUCTION
+    title: Schema Id validation
+
+  - type: ASCIINEMA
+
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml

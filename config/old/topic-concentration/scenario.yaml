@@ -42,6 +42,8 @@ actions:
       
       Create the virtual topics, produce and consume data to them, and explore how this works.
 
+  - type: ASCIINEMA
+
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml

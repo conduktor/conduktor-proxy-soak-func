@@ -35,6 +35,10 @@ services:
       gateway.host: http://localhost:8889
 
 actions:
+  - type: INTRODUCTION
+    title: Yes, SQL topic work with Avro/ProtoBuff.
+
+  - type: ASCIINEMA
 
   - type: FILE
     title: Review the docker compose environment

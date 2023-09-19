@@ -169,6 +169,8 @@ actions:
       
       This features enables to build a seamless disaster recovery strategy for your Kafka cluster when Gateway is deployed in combination with a replication solution (like MirrorMaker, Confluent replicator, Cluster Linking, etc.).
 
+  - type: ASCIINEMA
+
   - type: STEP
     title: Limitations to consider when designing a disaster recovery strategy
     markdown: |

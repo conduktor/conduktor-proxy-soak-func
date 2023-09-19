@@ -37,6 +37,8 @@ actions:
       
       This demo will run you through some of these use cases step-by-step.
 
+  - type: ASCIINEMA
+
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml

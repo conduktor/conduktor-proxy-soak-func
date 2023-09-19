@@ -30,6 +30,11 @@ services:
 
 actions:
 
+  - type: INTRODUCTION
+    title: Multi-tenancy, virtual clusters
+
+  - type: ASCIINEMA
+
   - type: FILE
     title: Review the docker compose environment
     filename: docker-compose.yaml
