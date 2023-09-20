@@ -37,7 +37,6 @@ actions:
   - type: ASCIINEMA
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
       As can be seen from `docker-compose.yaml` the demo environment consists of the following:
@@ -48,9 +47,7 @@ actions:
       * 1 schema registry
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
@@ -69,7 +66,10 @@ actions:
         partitions: 1
 
   - type: ADD_INTERCEPTORS
-    title: Encrypting the `customers`topic
+    markdown: |
+      We want to encrypt two fields at the root layer, and `location` in the `address` object. 
+      
+      Here we are using an in memory KMS.
     gateway: gateway1
     interceptors:
       teamA:
@@ -105,10 +105,6 @@ actions:
                 }
               } ]
           }
-    markdown: |
-      We want to encrypt two fields at the root layer, and `location` in the `address` object. 
-      
-      Here we are using an in memory KMS.
 
   - type: LIST_INTERCEPTORS
     gateway: gateway1
@@ -197,7 +193,8 @@ actions:
       `password` and `visa` and the nested field `address.location` are encrypted
 
   - type: ADD_INTERCEPTORS
-    title: Let's add the decrypt interceptor to decipher messages
+    markdown: |
+      Let's add the decrypt interceptor to decipher messages
     gateway: gateway1
     interceptors: {
       "teamA": {
@@ -240,11 +237,8 @@ actions:
       `password` and `visa` and the nested field `address.location` are decrypted
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       Yes, encryption in the Kafka world can be simple!

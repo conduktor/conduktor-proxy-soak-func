@@ -172,7 +172,7 @@ public class ScenarioTest {
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing $stepSh " `date`
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
-                sh -x $stepSh > output/$step.txt 2>&1
+                sh -x $stepSh  2>&1 > output/$step.txt
 
                 awk '
                   BEGIN { content = ""; tag = "'$step-OUTPUT'" }
@@ -331,6 +331,10 @@ public class ScenarioTest {
 
     private void step(Map<String, Properties> services, ClientFactory clientFactory, int _id, Scenario.Action _action) throws Exception {
         String id = format("%02d", _id);
+        if (!_action.isEnabled()) {
+            log.warn("[" + id + "] skipping " + _action.simpleMessage());
+            return;
+        }
         log.info("[" + id + "] " + _action.simpleMessage());
 
         appendTo("Readme.md",

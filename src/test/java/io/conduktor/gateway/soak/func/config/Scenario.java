@@ -15,8 +15,8 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 @AllArgsConstructor
 public class Scenario {
     protected String title;
-    protected Boolean recordAscinema = true;
-    protected Boolean recordOutput = true;
+    protected Boolean recordAscinema = false;
+    protected Boolean recordOutput = false;
     private Map<String, Service> services;
     protected LinkedList<Action> actions;
 
@@ -82,9 +82,10 @@ public class Scenario {
         protected String title = "";
         public String markdown = "";
         public String gateway;
+        public boolean enabled = true;
 
         public String simpleMessage() {
-            return type + " " + title;
+            return type + " " + getTitle();
         }
 
         public String markdownHeader() {
@@ -109,6 +110,31 @@ public class Scenario {
     @Data
     public static class DockerAction extends CommandAction {
         protected String command;
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return switch (command) {
+                case "docker compose down --volumes" -> "Cleanup the docker environment";
+                case "docker compose up --detached --wait" -> "Startup the docker environment";
+                default -> "Execute `" + command + "`";
+            };
+        }
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            return switch (command) {
+                case "docker compose down --volumes" -> "Remove all your docker processes and associated volumes";
+                case "docker compose up --detached --wait" ->
+                        "Start all your docker processes, wait for them to be up and ready, the detach";
+                default -> null;
+            };
+        }
     }
 
 
@@ -295,6 +321,7 @@ public class Scenario {
             }
             return "Consuming from `" + topic + "`";
         }
+
         @Override
         public String getMarkdown() {
             if (StringUtils.isNotBlank(markdown)) {
@@ -342,6 +369,13 @@ public class Scenario {
             }
             return "Failing over from `" + from + "` to `" + to + "`";
         }
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Failing over from `" + from + "` to `" + to + "` on gateway `" + gateway + "`";
+        }
     }
 
     @Data
@@ -373,7 +407,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Removing interceptor" + (names.size() == 1 ? "" : "s") +
+            return "Remove interceptor" + (names.size() == 1 ? "" : "s") +
                     " " + names.stream().collect(joining(",", "`", "`"));
         }
     }
@@ -393,6 +427,7 @@ public class Scenario {
             }
             return "Creating mapping from `" + topicPattern + "` to `" + physicalTopicName + "`";
         }
+
         @Override
         public String getMarkdown() {
             if (StringUtils.isNotBlank(markdown)) {
@@ -476,7 +511,10 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Review `" + filename + "`";
+            return switch(filename) {
+                case "docker-compose.yaml" -> "Review the docker compose environment";
+                default ->"Review `" + filename + "`";
+            };
         }
     }
 

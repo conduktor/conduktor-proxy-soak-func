@@ -1,4 +1,4 @@
-title: Safeguard
+title: SQL topics
 services:
   kafka1:
     properties:
@@ -41,7 +41,6 @@ actions:
   - type: ASCIINEMA
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
       As can be seen from `docker-compose.yaml` the demo environment consists of the following:
@@ -51,9 +50,7 @@ actions:
       * A 2 nodes Conduktor Gateway server
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
@@ -103,7 +100,8 @@ actions:
       Let's confirm the 2 records are there by consuming from the `cars` topic.
 
   - type: ADD_INTERCEPTORS
-    title: Create the sql topic `red-cars`
+    markdown: |
+      Let's create the interceptor to filter out the red cars from the `cars` topic.
     gateway: gateway1
     interceptors:
       teamA:
@@ -114,8 +112,6 @@ actions:
             "virtualTopic": "red-cars",
             "statement": "SELECT type, price as money FROM cars WHERE color = 'red'"
           }
-    markdown: |
-      Let's create the interceptor to filter out the red cars from the `cars` topic.
 
   - type: LIST_INTERCEPTORS
     gateway: gateway1
@@ -169,11 +165,8 @@ actions:
       is an example where you mix projection, case, renaming, and kafka metadata.
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       SQL topic is really a game changer!

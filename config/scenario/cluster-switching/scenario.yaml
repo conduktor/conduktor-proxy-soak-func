@@ -126,7 +126,6 @@ services:
         retries: 25
   gateway1:
     docker:
-      image: conduktor/conduktor-gateway:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
@@ -144,7 +143,6 @@ services:
 
   gateway2:
     docker:
-      image: conduktor/conduktor-gateway:2.1.4
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
@@ -181,7 +179,6 @@ actions:
       * When switching, Kafka consumers will perform a group rebalance. They will not be able to commit their offset before the rebalance. This may lead to a some messages being consumed twice
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     headerLevel: 3
     markdown: |
@@ -216,9 +213,7 @@ actions:
       Gateway expects the topics to have the same names on both clusters.
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
@@ -246,7 +241,6 @@ actions:
       - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
 
   - type: LIST_TOPICS
-    title: List topics
     kafka: kafka1
     assertExists:
       - _acls
@@ -288,13 +282,11 @@ actions:
       - teamAusers
 
   - type: FAILOVER
-    title: Call the failover switch api on `gateway1`
     gateway: gateway1
     from: main
     to: failover
 
   - type: FAILOVER
-    title: Call the failover switch api on `gateway2`
     gateway: gateway2
     from: main
     to: failover
@@ -343,11 +335,8 @@ actions:
           expected: 'thibaut'
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       Cluster switching help your seamlessly move from one cluster to another!

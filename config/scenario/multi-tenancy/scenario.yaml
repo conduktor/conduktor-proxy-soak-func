@@ -36,7 +36,6 @@ actions:
   - type: ASCIINEMA
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
       As can be seen from `docker-compose.yaml` the demo environment consists of the following:
@@ -46,12 +45,9 @@ actions:
       * A 2 nodes Conduktor Gateway server
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
 
   - type: LIST_TOPICS
-    title: List topics in the underlying kafka
     kafka: kafka1
     assertExists:
       - _auditLogs
@@ -89,14 +85,12 @@ actions:
         partitions: 1
 
   - type: LIST_TOPICS
-    title: List the topics in `london` virtual cluster
     kafka: london
     kafkaConfig: london-sa.properties
     assertExists:
       - londonTopic
 
   - type: LIST_TOPICS
-    title: List the topics in `paris` virtual cluster
     kafka: paris
     kafkaConfig: paris-sa.properties
     assertExists:
@@ -255,9 +249,7 @@ actions:
           expected: '{"message": "Existing shared message"}'
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
     markdown: |

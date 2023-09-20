@@ -40,7 +40,6 @@ actions:
   - type: ASCIINEMA
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
       As can be seen from `docker-compose.yaml` the demo environment consists of the following:
@@ -50,9 +49,7 @@ actions:
       * A 2 nodes Conduktor Gateway server
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
@@ -71,7 +68,6 @@ actions:
         partitions: 1
 
   - type: ADD_INTERCEPTORS
-    title: Create `inject-headers` interceptor
     gateway: gateway1
     interceptors:
       teamA:
@@ -124,7 +120,6 @@ actions:
             expected: 'my own value'
 
   - type: ADD_INTERCEPTORS
-    title: Create `remove-headers` interceptor
     gateway: gateway1
     interceptors:
       teamA:
@@ -163,7 +158,6 @@ actions:
             expected: 'my own value'
 
   - type: REMOVE_INTERCEPTORS
-    title: Delete the `remove-headers` interceptor
     gateway: gateway1
     vcluster: teamA
     names:
@@ -172,7 +166,7 @@ actions:
       Let's delete the interceptor `remove-headers` so we can access all our headers again
 
   - type: CONSUME
-    title: Verify tom and florent have `X-MY-KEY` back
+    title: Verify `tom` and `florent` have `X-MY-KEY` back
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: users
@@ -198,12 +192,9 @@ actions:
             expected: 'my own value'
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       Leveraging headers in Kafka is of tremendous help!
       

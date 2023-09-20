@@ -1,4 +1,4 @@
-title: Crypto Shredding
+title: Crypto Shredding with fips
 services:
   kafka1:
     properties:
@@ -14,7 +14,9 @@ services:
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_SECURITY_PROVIDER: BOUNCY_CASTLE
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_FEATURE_FLAGS_ANALYTICS: false
     properties:
       bootstrap.servers: localhost:6969
       gateway.host: http://localhost:8888
@@ -24,6 +26,8 @@ services:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
         GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_SECURITY_PROVIDER: BOUNCY_CASTLE
+        GATEWAY_FEATURE_FLAGS_ANALYTICS: false
     properties:
       bootstrap.servers: localhost:6969
       gateway.host: http://localhost:8889
@@ -63,7 +67,6 @@ actions:
   - type: ASCIINEMA
 
   - type: FILE
-    title: Review the docker compose environment
     filename: docker-compose.yaml
     markdown: |
       As can be seen from `docker-compose.yaml` the demo environment consists of the following:
@@ -73,9 +76,16 @@ actions:
       * A 2 nodes Conduktor Gateway server
 
   - type: DOCKER
-    title: Start the docker environment
-    command: docker compose up -d --wait
-    markdown: Start your docker environment
+    command: docker compose up --detached --wait
+
+  - type: SH
+    title: Verify the security provider setup
+    script: docker logs  gateway1 2>&1  | grep "Security Provider"
+
+  - type: SH
+    title: Verify the disabled algorithms
+    script: docker logs  gateway1 2>&1  | grep "disabledAlgorithms"
+    showOutput: true
 
   - type: CREATE_VIRTUAL_CLUSTERS
     gateway: gateway1
@@ -96,7 +106,8 @@ actions:
       - customers-shredding
 
   - type: ADD_INTERCEPTORS
-    title: Let's ask gateway to encrypt messages using vault and dynamic keys
+    markdown: |
+      Let's ask gateway to encrypt messages using vault and dynamic keys
     gateway: gateway1
     interceptors: {
       "teamA": {
@@ -156,6 +167,7 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
+    maxMessages: 2
     assertSize: 2
     assertions:
       - description: Confirm password is encrypted for tom
@@ -176,7 +188,8 @@ actions:
           expected: '#888999XZ'
 
   - type: ADD_INTERCEPTORS
-    title: Let's add the decrypt interceptor to decipher messages
+    markdown: |
+      Let's add the decrypt interceptor to decipher messages
     gateway: gateway1
     interceptors: {
       "teamA": {
@@ -210,6 +223,7 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
+    maxMessages: 2
     assertSize: 2
     assertions:
       - description: Confirm password is decrypted for tom
@@ -263,6 +277,7 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: customers-shredding
+    maxMessages: 2
     assertSize: 2
     assertions:
       - description: Confirm password is decrypted for tom
@@ -283,11 +298,8 @@ actions:
           expected: '#888999XZ'
 
   - type: DOCKER
-    title: Cleanup the docker environment
-    command: docker compose down -v
-    markdown: Remove all components from docker
+    command: docker compose down --volumes
 
   - type: CONCLUSION
-    title: Conclusion
     markdown: |
       Crypto shredding help you protect your most precious information
