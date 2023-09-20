@@ -170,19 +170,19 @@ actions:
     maxMessages: 2
     assertSize: 2
     assertions:
-      - description: Confirm password is encrypted for tom
+      - description: Confirm password is encrypted for `tom`
         value:
           operator: doesNotContainIgnoringCase
           expected: 'motorhead'
-      - description: Confirm visa is encrypted for tom
+      - description: Confirm visa is encrypted for `tom`
         value:
           operator: doesNotContainIgnoringCase
           expected: '#abc123'
-      - description: Confirm password is encrypted for florent
+      - description: Confirm password is encrypted for `florent`
         value:
           operator: doesNotContainIgnoringCase
           expected: 'kitesurf'
-      - description: Confirm visa is encrypted for florent
+      - description: Confirm visa is encrypted for `florent`
         value:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'
@@ -226,19 +226,19 @@ actions:
     maxMessages: 2
     assertSize: 2
     assertions:
-      - description: Confirm password is decrypted for tom
+      - description: Confirm password is decrypted for `tom`
         value:
           operator: containsIgnoreCase
           expected: 'motorhead'
-      - description: Confirm visa is decrypted for tom
+      - description: Confirm visa is decrypted for `tom`
         value:
           operator: containsIgnoreCase
           expected: '#abc123'
-      - description: Confirm password is decrypted for florent
+      - description: Confirm password is decrypted for `florent`
         value:
           operator: containsIgnoreCase
           expected: 'kitesurf'
-      - description: Confirm visa is decrypted for florent
+      - description: Confirm visa is decrypted for `florent`
         value:
           operator: containsIgnoreCase
           expected: '#888999XZ'
@@ -280,19 +280,19 @@ actions:
     maxMessages: 2
     assertSize: 2
     assertions:
-      - description: Confirm password is decrypted for tom
+      - description: Confirm password is decrypted for `tom`
         value:
           operator: containsIgnoreCase
           expected: 'motorhead'
-      - description: Confirm visa is decrypted for tom
+      - description: Confirm visa is decrypted for `tom`
         value:
           operator: containsIgnoreCase
           expected: '#abc123'
-      - description: Confirm password is encrypted for florent
+      - description: Confirm password is encrypted for `florent`
         value:
           operator: doesNotContainIgnoringCase
           expected: 'kitesurf'
-      - description: Confirm visa is encrypted for florent
+      - description: Confirm visa is encrypted for `florent`
         value:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'

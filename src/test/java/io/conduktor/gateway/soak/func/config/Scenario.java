@@ -285,7 +285,7 @@ public class Scenario {
         protected LinkedList<Message> messages;
         protected LinkedHashMap<String, String> properties;
         protected String topic;
-        protected Boolean assertError;
+        protected boolean assertError = false;
         protected List<String> assertErrorMessages = List.of();
         protected String acks;
         protected String compression;
@@ -394,6 +394,7 @@ public class Scenario {
     @EqualsAndHashCode(callSuper = true)
     public static class AddInterceptorAction extends GatewayAction {
         protected LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors;
+        protected String username;
 
         @Override
         public String getTitle() {
@@ -405,7 +406,7 @@ public class Scenario {
                     .values()
                     .stream()
                     .flatMap(e -> e.keySet().stream())
-                    .collect(joining(",", "`", "`")) + "  in `" + vcluster + "`";
+                    .collect(joining(",", "`", "`")) + " in `" + gateway + "`";
         }
     }
 

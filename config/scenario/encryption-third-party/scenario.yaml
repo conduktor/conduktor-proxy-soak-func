@@ -1,4 +1,4 @@
-title: Encryption
+title: Encryption for third party
 services:
   kafka1:
     properties:
@@ -30,9 +30,11 @@ services:
 
 actions:
   - type: INTRODUCTION
-    title: Field level encryption
+    title: Field level encryption for third party
     markdown: |
-      Let's demonstrate field level encryption 
+      Let's demonstrate field level encryption for third party
+
+      Aka sharing existing data that is not currently encrypted.
 
   - type: ASCIINEMA
 
@@ -56,6 +58,12 @@ actions:
     title: Review the kafka properties to connect to `teamA`
     filename: teamA-sa.properties
 
+  - type: CREATE_VIRTUAL_CLUSTERS
+    title: Let's create a service account `third-party` for `teamA` virtual cluster
+    gateway: gateway1
+    name: teamA
+    serviceAccount: third-party
+
   - type: CREATE_TOPICS
     kafka: teamA
     kafkaConfig: teamA-sa.properties
@@ -68,10 +76,11 @@ actions:
     markdown: |
       We want to encrypt only two fields, with an in memory KMS.
     gateway: gateway1
+    username: third-party
     interceptors:
       teamA:
-        encrypt:
-          "pluginClass": "io.conduktor.gateway.interceptor.EncryptPlugin"
+        encrypt-on-consume:
+          "pluginClass": "io.conduktor.gateway.interceptor.FetchEncryptPlugin"
           "priority": "100"
           "config": {
             "fields": [ {
@@ -96,7 +105,7 @@ actions:
     vcluster: teamA
     assertSize: 1
     assertNames:
-      - encrypt
+      - encrypt-on-consume
 
   - type: PRODUCE
     title: Let's send unencrypted json
@@ -106,13 +115,35 @@ actions:
     messages:
       - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
       - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ;","address":"Dubai, UAE"}'
-    markdown: |
-      We are using regular kafka tools
 
   - type: CONSUME
-    title: Let's consume the message, and confirm `tom` and `florent` data is encrypted
+    title: Confirm `tom` and `florent` data is not encrypted for `teamA`
     kafka: teamA
     kafkaConfig: teamA-sa.properties
+    topic: customers
+    assertSize: 2
+    assertions:
+      - description: Confirm password is not encrypted for `tom`
+        value:
+          operator: containsIgnoreCase
+          expected: 'motorhead'
+      - description: Confirm visa is not encrypted for `tom`
+        value:
+          operator: containsIgnoreCase
+          expected: '#abc123'
+      - description: Confirm password is not encrypted for `florent`
+        value:
+          operator: containsIgnoreCase
+          expected: 'kitesurf'
+      - description: Confirm visa is not encrypted for `florent`
+        value:
+          operator: containsIgnoreCase
+          expected: '#888999XZ'
+
+  - type: CONSUME
+    title: Confirm `tom` and `florent` data is encrypted for `third-party`
+    kafka: teamA
+    kafkaConfig: teamA-third-party.properties
     topic: customers
     assertSize: 2
     assertions:
@@ -132,69 +163,6 @@ actions:
         value:
           operator: doesNotContainIgnoringCase
           expected: '#888999XZ'
-
-  - type: ADD_INTERCEPTORS
-    markdown: |
-      Let's add the decrypt interceptor to decipher messages
-    gateway: gateway1
-    interceptors: {
-      "teamA": {
-        "decrypt": {
-          "pluginClass": "io.conduktor.gateway.interceptor.DecryptPlugin",
-          "priority": 100,
-          "config": {
-            "topic": "customers",
-            "kmsConfig": {
-              "vault": {
-                "uri": "http://vault:8200",
-                "token": "vault-plaintext-root-token",
-                "version": 1
-              }
-            }
-          }
-        }
-      }
-    }
-
-  - type: LIST_INTERCEPTORS
-    gateway: gateway1
-    vcluster: teamA
-    assertSize: 2
-    assertNames:
-      - encrypt
-      - decrypt
-
-  - type: CONSUME
-    title: Confirm message from `tom` and `florent` are encrypted
-    kafka: teamA
-    kafkaConfig: teamA-sa.properties
-    topic: customers
-    assertSize: 2
-    showHeaders: true
-    assertions:
-      - description: Confirm password is decrypted for `tom`
-        value:
-          operator: containsIgnoreCase
-          expected: 'motorhead'
-      - description: Confirm visa is decrypted for `tom`
-        value:
-          operator: containsIgnoreCase
-          expected: '#abc123'
-      - description: Confirm password is decrypted for `florent`
-        value:
-          operator: containsIgnoreCase
-          expected: 'kitesurf'
-      - description: Confirm visa is decrypted for `florent`
-        value:
-          operator: containsIgnoreCase
-          expected: '#888999XZ'
-
-  - type: CONSUME
-    title: Read the underlying kafka data to reveal the magic
-    kafka: kafka1
-    topic: teamAcustomers
-    assertSize: 2
-    showHeaders: true
 
   - type: DOCKER
     command: docker compose down --volumes

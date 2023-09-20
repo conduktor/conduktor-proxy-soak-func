@@ -12,6 +12,8 @@ import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
 import io.conduktor.gateway.soak.func.utils.KafkaActionUtils;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -37,10 +39,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URLEncoder;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
@@ -49,6 +48,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
@@ -270,7 +270,7 @@ public class ScenarioTest {
                     local title=$2
                     step "$title"
                     sh type.sh "$script"
-                    echo 
+                    echo
                 }
                                 
 
@@ -292,7 +292,7 @@ public class ScenarioTest {
     }
 
     private void executeSh(boolean showOutput, String description, String... command) throws IOException, InterruptedException {
-        log.info("{} {}", description, Arrays.stream(command).collect(joining(" ")));
+        log.info("{} {}", description, String.join(" ", command));
         ProcessBuilder recording = new ProcessBuilder();
         recording.directory(executionFolder);
         recording.redirectErrorStream(true);
@@ -304,7 +304,7 @@ public class ScenarioTest {
         process.waitFor();
     }
 
-    private void showProcessOutput(Process process) throws InterruptedException, IOException {
+    private void showProcessOutput(Process process) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -356,7 +356,7 @@ public class ScenarioTest {
                 //
             }
             case INTRODUCTION -> {
-                executeSh(false, "Starting docker behind the scene, to have a smooth recording",
+                executeSh(false, "Starting docker behind the scene to have a smooth recording",
                         "docker", "compose", "up", "--detach", "--wait");
             }
             case FILE -> {
@@ -448,12 +448,16 @@ public class ScenarioTest {
                         .response()
                         .as(VClusterCreateResponse.class);
 
-                Properties properties = services.getOrDefault(action.getName(), new Properties());
+                Properties serviceProperty = services.getOrDefault(action.getName(), new Properties());
+                Properties properties = new Properties(serviceProperty);
                 properties.put(BOOTSTRAP_SERVERS, gatewayBootstrapServers);
                 properties.put("security.protocol", "SASL_PLAINTEXT");
                 properties.put("sasl.mechanism", "PLAIN");
                 properties.put("sasl.jaas.config", "org.apache.kafka.common.security.plain.PlainLoginModule required username='" + action.getServiceAccount() + "' password='" + response.getToken() + "';");
-                services.put(action.getName(), properties);
+                if (!services.containsKey(action.getName())) {
+                    // by convention setup the config with the first cluster credentials of the same name
+                    services.put(action.getName(), properties);
+                }
 
                 savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
@@ -581,9 +585,7 @@ public class ScenarioTest {
                                     .forEach(e -> {
                                         try {
                                             e.get();
-                                        } catch (InterruptedException ex) {
-                                            throw new RuntimeException(ex);
-                                        } catch (ExecutionException ex) {
+                                        } catch (Exception ex) {
                                             throw new RuntimeException(ex);
                                         }
                                     });
@@ -666,7 +668,7 @@ public class ScenarioTest {
                                         format("""
                                                         echo '%s' | \\
                                                             kafka-console-producer \\
-                                                                --bootstrap-server %s%s%s%s%s \\
+                                                                --bootstrap-server %s%s%s%s \\
                                                                 --topic %s
                                                         """,
                                                 message.getValue(),
@@ -679,7 +681,8 @@ public class ScenarioTest {
                         code(scenario, action, id, removeEnd(command, "\n"));
 
 
-                        if (action.getAssertError() != null) {
+                        System.out.println(action);
+                        if (action.isAssertError()) {
                             Assertions.fail("Produce should have failed");
                         }
                     } catch (Exception e) {
@@ -687,7 +690,10 @@ public class ScenarioTest {
                             assertThat(e.getMessage())
                                     .contains(action.getAssertErrorMessages());
                         }
-                        log.error("could not produce message");
+                        if (!action.isAssertError()) {
+                            Assertions.fail("Could not produce message on " + action.getTopic(), e);
+                        }
+                        log.error("could not produce message ", e);
                     }
                 }
             }
@@ -706,7 +712,7 @@ public class ScenarioTest {
                 } else if (action.getAssertSize() != null || action.getMaxMessages() == null) {
                     timeout = TimeUnit.SECONDS.toMillis(5);
                 } else {
-                    timeout = TimeUnit.MINUTES.toMillis(1);
+                    timeout = TimeUnit.SECONDS.toMillis(15);
                 }
 
                 int maxRecords;
@@ -797,7 +803,7 @@ public class ScenarioTest {
                 var action = ((Scenario.AddInterceptorAction) _action);
                 String gatewayHost = gatewayHost(action);
 
-                configurePlugins(gatewayHost, action.getInterceptors());
+                configurePlugins(gatewayHost, action.getInterceptors(), action.getUsername());
                 LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> interceptors = action.getInterceptors();
                 for (var request : interceptors.entrySet()) {
                     LinkedHashMap<String, PluginRequest> plugins = request.getValue();
@@ -809,7 +815,7 @@ public class ScenarioTest {
                         appendTo("Readme.md",
                                 format("""
 
-                                                Creating the interceptor named `%s` of the plugin `%s` using the following payload
+                                                Creating the interceptor named `%s` of the plugin `%s`%s using the following payload
 
                                                 ```json
                                                 %s
@@ -819,6 +825,7 @@ public class ScenarioTest {
 
                                                 """,
                                         pluginName,
+                                        action.getUsername() == null ? "" : " for " + action.getUsername(),
                                         pluginBody.getPluginClass(),
                                         PRETTY_OBJECT_MAPPER
                                                 .writeValueAsString(pluginBody)));
@@ -826,13 +833,14 @@ public class ScenarioTest {
                         code(scenario, action, id, """
                                         curl \\
                                             --silent \\
-                                            --request POST "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
+                                            --request POST "%s/admin/interceptors/v1/vcluster/%s%s/interceptor/%s" \\
                                             --user 'admin:conduktor' \\
                                             --header 'Content-Type: application/json' \\
                                             --data-raw '%s' | jq
                                         """,
                                 gatewayHost,
                                 vcluster,
+                                action.getUsername() == null ? "" : "/username/" + action.getUsername(),
                                 pluginName,
                                 OBJECT_MAPPER.writeValueAsString(pluginBody)
                         );
@@ -1098,7 +1106,7 @@ public class ScenarioTest {
         writeStringToFile(propertiesFile, content, defaultCharset());
     }
 
-    private Properties getProperties(Map<String, Properties> services, Scenario.KafkaAction action) {
+    private Properties getProperties(Map<String, Properties> services, Scenario.KafkaAction action) throws Exception {
         if (isBlank(action.getKafka())) {
             throw new RuntimeException("[" + action.simpleMessage() + "] needs to define its target kafka");
         }
@@ -1110,6 +1118,12 @@ public class ScenarioTest {
         p.putAll(kafkaService);
         if (action.getProperties() != null) {
             p.putAll(action.getProperties());
+        }
+        if (action.getKafkaConfig() != null) {
+            Properties specifiedManually = new Properties();
+            specifiedManually.load(new FileInputStream(executionFolder + "/" + action.getKafkaConfig()));
+            // override with specified
+            p.putAll(specifiedManually);
         }
         return p;
     }
@@ -1133,29 +1147,31 @@ public class ScenarioTest {
     }
 
 
-    private static void configurePlugins(String gateway, LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins) {
+    private static void configurePlugins(String gateway, LinkedHashMap<String, LinkedHashMap<String, PluginRequest>> plugins, String username) {
         for (var plugin : plugins.entrySet()) {
-            configurePlugins(gateway, plugin.getValue(), plugin.getKey());
-        }
-    }
-
-    private static void configurePlugins(String gateway, LinkedHashMap<String, PluginRequest> plugins, String vcluster) {
-        for (var plugin : plugins.entrySet()) {
-            var pluginName = plugin.getKey();
-            log.info("Configuring " + pluginName);
-            var pluginBody = plugin.getValue();
-            given()
-                    .baseUri(gateway + "/admin/interceptors/v1")
-                    .auth()
-                    .basic(ADMIN_USER, ADMIN_PASSWORD)
-                    .body(pluginBody)
-                    .contentType(ContentType.JSON)
-                    .when()
-                    .post("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, pluginName)
-                    .then()
-                    .statusCode(SC_CREATED)
-                    .extract()
-                    .response();
+            for (var plugin1 : plugin.getValue().entrySet()) {
+                var pluginName = plugin1.getKey();
+                log.info("Configuring " + pluginName + " " + (username == null ? "" : " for " + username));
+                var pluginBody = plugin1.getValue();
+                RequestSpecification when = given()
+                        .baseUri(gateway + "/admin/interceptors/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .body(pluginBody)
+                        .contentType(ContentType.JSON)
+                        .when();
+                final Response post;
+                if (username == null) {
+                    post = when.post("/vcluster/{vcluster}/interceptor/{pluginName}", plugin.getKey(), pluginName);
+                } else {
+                    post = when.post("/vcluster/{vcluster}/username/{username}/interceptor/{pluginName}", plugin.getKey(), username, pluginName);
+                }
+                post
+                        .then()
+                        .statusCode(SC_CREATED)
+                        .extract()
+                        .response();
+            }
         }
     }
 
@@ -1182,8 +1198,8 @@ public class ScenarioTest {
 
     private static void assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
 
-        List<String> keys = records.stream().map(ConsumerRecord::key).toList();
-        List<String> values = records.stream().map(ConsumerRecord::value).toList();
+        String keys = records.stream().map(ConsumerRecord::key).collect(joining("\n"));
+        String values = records.stream().map(ConsumerRecord::value).collect(joining("\n"));
         List<Header> headers = records.stream().flatMap(r -> getHeaders(r).stream()).toList();
 
 
@@ -1194,9 +1210,8 @@ public class ScenarioTest {
             if (isNotBlank(recordAssertion.getDescription())) {
                 log.info("Test: " + recordAssertion.getDescription());
             }
-            if ((validKey && validValues && validHeader) == false) {
-                log.info("Assertion failed with key: " + validKey + ", values: " + validValues + ", header: " + validHeader);
-                Assertions.fail(recordAssertion.getDescription() + " failed");
+            if (!(validKey && validValues && validHeader)) {
+                Assertions.fail(recordAssertion.getDescription() + " failed " + values);
             }
         }
     }
@@ -1213,7 +1228,12 @@ public class ScenarioTest {
 
         for (String headerKey : recordAssertion.getHeaders().keySet()) {
             Scenario.Assertion headerAssertion = recordAssertion.getHeaders().get(headerKey);
-            List<String> headerValues = headers.stream().filter(e -> headerKey.equals(e.key())).map(h -> new String(h.value())).toList();
+            String headerValues = headers
+                    .stream()
+                    .filter(e -> headerKey.equals(e.key()))
+                    .map(h -> new String(h.value()))
+                    .toList()
+                    .stream().collect(Collectors.joining("\n"));
             if (!validate(headerAssertion, headerValues)) {
                 return false;
             }
@@ -1221,14 +1241,10 @@ public class ScenarioTest {
         return true;
     }
 
-    public static boolean validate(Scenario.Assertion assertion, List<String> data) {
+    public static boolean validate(Scenario.Assertion assertion, String data) {
         if (assertion == null) {
             return true;
         }
-        return data.stream().filter(value -> validate(assertion, value)).findFirst().isPresent();
-    }
-
-    public static boolean validate(Scenario.Assertion assertion, String data) {
         String expected = assertion.getExpected();
         return switch (assertion.getOperator()) {
             case "satisfies" -> satisfies(data, expected);
