@@ -16,8 +16,8 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 public class Scenario {
     protected String title;
     protected boolean enabled = true;
-    protected boolean recordAscinema = true;
-    protected boolean recordOutput = true;
+    protected boolean recordAscinema = false;
+    protected boolean recordOutput = false;
     private Map<String, Service> services;
     protected LinkedList<Action> actions;
 
