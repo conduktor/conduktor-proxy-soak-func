@@ -221,7 +221,7 @@ public class ScenarioTest {
                     if (scenario.isEnabled()) {
                         scenarios.add(Arguments.of(scenario, scenarioFolder));
                     } else {
-                        log.warn("Scenarion {} is not enabled", scenario.getTitle());
+                        log.warn("Scenario {} is not enabled", scenario.getTitle());
                     }
                 }
             }
@@ -971,9 +971,9 @@ public class ScenarioTest {
 
                 code(scenario, action, id, removeEnd(expandedScript, "\n"));
 
-                for (int iteration = 0; iteration < action.getIteration(); iteration++) {
+                for (int iteration = 1; iteration <= action.getIteration(); iteration++) {
                     String script = "step-" + id + "-" + action.getType() + ".sh";
-                    if (iteration>0) {
+                    if (iteration > 1) {
                         log.info("Iteration {}/{} for {}", iteration, action.getIteration(), script);
                     }
                     ProcessBuilder processBuilder = new ProcessBuilder();

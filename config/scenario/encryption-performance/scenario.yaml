@@ -30,9 +30,9 @@ services:
 
 actions:
   - type: INTRODUCTION
-    title: Field level encryption
+    title: Field level encryption and performance
     markdown: |
-      Let's demonstrate field level encryption 
+      Let's demonstrate field level encryption and performance
 
   - type: ASCIINEMA
 
@@ -137,11 +137,15 @@ actions:
             linger.ms=100 \
             compression.type=lz4 \
         --producer.config ${KAFKA_CONFIG_FILE} \
-        --payload-file customers.json
+        --payload-file examples.json
 
   - type: DOCKER
     command: docker compose down --volumes
 
   - type: CONCLUSION
     markdown: |
-      Yes, encryption in the Kafka world can be simple!
+      Yes, encryption in the Kafka world can be simple ... and efficient!
+      
+      > [!NOTE]
+      > The best part is that this performance level is with the default security provider.
+      > You can use Bouncy Castle, Conscrypt etc to boost both your performance and compliancy!

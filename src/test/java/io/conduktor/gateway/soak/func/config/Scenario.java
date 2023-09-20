@@ -119,7 +119,7 @@ public class Scenario {
             }
             return switch (command) {
                 case "docker compose down --volumes" -> "Cleanup the docker environment";
-                case "docker compose up --detached --wait" -> "Startup the docker environment";
+                case "docker compose up --detach --wait" -> "Startup the docker environment";
                 default -> "Execute `" + command + "`";
             };
         }
@@ -132,12 +132,12 @@ public class Scenario {
             return switch (command) {
                 case "docker compose down --volumes" -> """
                         Remove all your docker processes and associated volumes
-                        
+
                         * `--volumes`: Remove named volumes declared in the "volumes" section of the Compose file and anonymous volumes attached to containers.
                         """;
-                case "docker compose up --detached --wait" -> """
+                case "docker compose up --detach --wait" -> """
                         Start all your docker processes, wait for them to be up and ready, then run in background
-                                                
+
                         * `--wait`: Wait for services to be `running|healthy`. Implies detached mode.
                         * `--detach`: Detached mode: Run containers in the background
                         """;
@@ -188,7 +188,7 @@ public class Scenario {
                 return title;
             }
             return "Describing topic" +
-                    (topics.isEmpty() ? "" : "s")
+                    (topics.size() == 1 ? "" : "s")
                     + " " + topics
                     .stream()
                     .collect(joining(",", "`", "`"));
@@ -221,7 +221,7 @@ public class Scenario {
                 return title;
             }
             return "Creating topic" +
-                    (topics.isEmpty() ? "" : "s")
+                    (topics.size() == 1 ? "" : "s")
                     + " " + topics
                     .stream()
                     .map(CreateTopicRequest::getName)
@@ -234,7 +234,7 @@ public class Scenario {
                 return markdown;
             }
             String markdown = "Creating topic" +
-                    (topics.isEmpty() ? "" : "s")
+                    (topics.size() == 1 ? "" : "s")
                     + " " + topics
                     .stream()
                     .map(CreateTopicRequest::getName)
@@ -242,7 +242,7 @@ public class Scenario {
                     + " on `" + kafka + "`\n";
 
             for (CreateTopicRequest topic : topics) {
-                markdown += "* `" + topic.getName() + "` nbPartitions:" + topic.getPartitions() + " replicationFactor:" + topic.getReplicationFactor();
+                markdown += "* topic `" + topic.getName() + "` with partitions:" + topic.getPartitions() + " replication-factor:" + topic.getReplicationFactor();
             }
 
             return markdown;
@@ -401,7 +401,11 @@ public class Scenario {
                 return title;
             }
             return "Adding interceptor" + (interceptors.keySet().size() == 1 ? "" : "s") +
-                    " " + interceptors.keySet().stream().collect(joining(",", "`", "`"));
+                    " " + interceptors
+                    .values()
+                    .stream()
+                    .flatMap(e -> e.keySet().stream())
+                    .collect(joining(",", "`", "`")) + "  in `" + vcluster + "`";
         }
     }
 
