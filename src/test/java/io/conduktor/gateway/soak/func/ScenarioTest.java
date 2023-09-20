@@ -23,6 +23,7 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -489,29 +490,29 @@ public class ScenarioTest {
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
 
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
-                    for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
-                        try {
-                            createTopic(adminClient,
-                                    topic.getName(),
-                                    topic.getPartitions(),
-                                    topic.getReplicationFactor(),
-                                    topic.getConfig());
-                            if (action.getAssertError()) {
-                                Assertions.fail("Expected an error during the " + topic.getName() + " creation");
-                            }
-                        } catch (Exception e) {
-                            if (!action.getAssertErrorMessages().isEmpty()) {
-                                assertThat(e.getMessage())
-                                        .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
-                            }
-                            if (!action.getAssertError()) {
-                                Assertions.fail("Did not expect an error during the " + topic.getName() + " creation", e);
-                            }
-                            log.warn(topic + " creation failed", e);
+                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
+                    try {
+                        createTopic(adminClient,
+                                topic.getName(),
+                                topic.getPartitions(),
+                                topic.getReplicationFactor(),
+                                topic.getConfig());
+                        if (action.getAssertError()) {
+                            Assertions.fail("Expected an error during the " + topic.getName() + " creation");
                         }
+                    } catch (Exception e) {
+                        if (!action.getAssertErrorMessages().isEmpty()) {
+                            assertThat(e.getMessage())
+                                    .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
+                        }
+                        if (!action.getAssertError()) {
+                            Assertions.fail("Did not expect an error during the " + topic.getName() + " creation", e);
+                        }
+                        log.warn(topic + " creation failed", e);
                     }
                 }
+
 
                 String createTopics = "";
                 for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
@@ -541,115 +542,115 @@ public class ScenarioTest {
             }
             case LIST_TOPICS -> {
                 var action = ((Scenario.ListTopicsAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
-                    Set<String> topics = adminClient.listTopics().names().get();
-                    code(scenario, action, id, """
-                                    kafka-topics \\
-                                        --bootstrap-server %s%s \\
-                                        --list
-                                    """,
-                            kafkaBoostrapServers(services, action),
-                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig());
-                    if (Objects.nonNull(action.getAssertSize())) {
-                        assertThat(topics)
-                                .hasSize(action.getAssertSize());
-                    }
-                    if (!action.getAssertExists().isEmpty()) {
-                        assertThat(topics)
-                                .containsAll(action.getAssertExists());
-                    }
-                    if (!action.getAssertDoesNotExist().isEmpty()) {
-                        assertThat(topics)
-                                .doesNotContainAnyElementsOf(action.getAssertDoesNotExist());
-                    }
+                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                Set<String> topics = adminClient.listTopics().names().get();
+                code(scenario, action, id, """
+                                kafka-topics \\
+                                    --bootstrap-server %s%s \\
+                                    --list
+                                """,
+                        kafkaBoostrapServers(services, action),
+                        action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig());
+                if (Objects.nonNull(action.getAssertSize())) {
+                    assertThat(topics)
+                            .hasSize(action.getAssertSize());
                 }
+                if (!action.getAssertExists().isEmpty()) {
+                    assertThat(topics)
+                            .containsAll(action.getAssertExists());
+                }
+                if (!action.getAssertDoesNotExist().isEmpty()) {
+                    assertThat(topics)
+                            .doesNotContainAnyElementsOf(action.getAssertDoesNotExist());
+                }
+
             }
             case ALTER_TOPICS -> {
                 var action = ((Scenario.AlterTopicAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
-                    for (Scenario.AlterTopicAction.AlterTopicRequest topic : action.getTopics()) {
-                        try {
-                            List<ConfigEntry> configEntries = topic
-                                    .getConfig()
-                                    .entrySet()
-                                    .stream()
-                                    .map(e -> new ConfigEntry(e.getKey(), e.getValue()))
-                                    .toList();
+                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                for (Scenario.AlterTopicAction.AlterTopicRequest topic : action.getTopics()) {
+                    try {
+                        List<ConfigEntry> configEntries = topic
+                                .getConfig()
+                                .entrySet()
+                                .stream()
+                                .map(e -> new ConfigEntry(e.getKey(), e.getValue()))
+                                .toList();
 
-                            Map<ConfigResource, Config> configs = Map.of(
-                                    new ConfigResource(ConfigResource.Type.TOPIC, topic.getName()),
-                                    new Config(configEntries));
-                            adminClient.alterConfigs(configs)
-                                    .values()
-                                    .values()
-                                    .forEach(e -> {
-                                        try {
-                                            e.get();
-                                        } catch (Exception ex) {
-                                            throw new RuntimeException(ex);
-                                        }
-                                    });
+                        Map<ConfigResource, Config> configs = Map.of(
+                                new ConfigResource(ConfigResource.Type.TOPIC, topic.getName()),
+                                new Config(configEntries));
+                        adminClient.alterConfigs(configs)
+                                .values()
+                                .values()
+                                .forEach(e -> {
+                                    try {
+                                        e.get();
+                                    } catch (Exception ex) {
+                                        throw new RuntimeException(ex);
+                                    }
+                                });
 
 
-                            code(scenario, action, id, """
-                                            kafka-topics \\
-                                                --bootstrap-server %s%s%s \\
-                                                --alter \\
-                                                --topic %s
-                                            """,
-                                    kafkaBoostrapServers(services, action),
-                                    action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
-                                    configEntries
-                                            .stream()
-                                            .map(d -> " \\\n    --add-config " + d.name() + "=" + d.value())
-                                            .collect(joining("")),
-                                    topic.getName());
-                        } catch (Exception e) {
-                            if (!action.getAssertErrorMessages().isEmpty()) {
-                                assertThat(e.getMessage())
-                                        .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
-                            }
-                            if (!action.getAssertError()) {
-                                Assertions.fail("Did not expect an error during update of " + topic.getName() + " ", e);
-                            }
-                            log.warn(topic + " update failed", e);
-
-                        }
-                    }
-                }
-            }
-            case DESCRIBE_TOPICS -> {
-                var action = ((Scenario.DescribeTopicsAction) _action);
-                try (var adminClient = clientFactory.kafkaAdmin(getProperties(services, action))) {
-                    Map<String, TopicDescription> topics = adminClient
-                            .describeTopics(action.getTopics())
-                            .allTopicNames()
-                            .get();
-                    for (String topic : action.getTopics()) {
                         code(scenario, action, id, """
                                         kafka-topics \\
-                                            --bootstrap-server %s%s \\
-                                            --describe \\
+                                            --bootstrap-server %s%s%s \\
+                                            --alter \\
                                             --topic %s
                                         """,
                                 kafkaBoostrapServers(services, action),
                                 action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
-                                topic);
-                    }
-                    for (DescribeTopicsActionAssertions assertion : action.getAssertions()) {
-                        assertThat(topics)
-                                .containsKey(assertion.getName());
-                        TopicDescription topicDescription = topics.get(assertion.getName());
-                        if (assertion.getPartitions() != null) {
-                            assertThat(topicDescription.partitions())
-                                    .hasSize(assertion.getPartitions());
+                                configEntries
+                                        .stream()
+                                        .map(d -> " \\\n    --add-config " + d.name() + "=" + d.value())
+                                        .collect(joining("")),
+                                topic.getName());
+                    } catch (Exception e) {
+                        if (!action.getAssertErrorMessages().isEmpty()) {
+                            assertThat(e.getMessage())
+                                    .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
                         }
-                        if (assertion.getReplicationFactor() != null) {
-                            assertThat(topicDescription.partitions().get(0).replicas())
-                                    .hasSize(assertion.getReplicationFactor());
+                        if (!action.getAssertError()) {
+                            Assertions.fail("Did not expect an error during update of " + topic.getName() + " ", e);
                         }
+                        log.warn(topic + " update failed", e);
+
                     }
                 }
+
+            }
+            case DESCRIBE_TOPICS -> {
+                var action = ((Scenario.DescribeTopicsAction) _action);
+                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                Map<String, TopicDescription> topics = adminClient
+                        .describeTopics(action.getTopics())
+                        .allTopicNames()
+                        .get();
+                for (String topic : action.getTopics()) {
+                    code(scenario, action, id, """
+                                    kafka-topics \\
+                                        --bootstrap-server %s%s \\
+                                        --describe \\
+                                        --topic %s
+                                    """,
+                            kafkaBoostrapServers(services, action),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
+                            topic);
+                }
+                for (DescribeTopicsActionAssertions assertion : action.getAssertions()) {
+                    assertThat(topics)
+                            .containsKey(assertion.getName());
+                    TopicDescription topicDescription = topics.get(assertion.getName());
+                    if (assertion.getPartitions() != null) {
+                        assertThat(topicDescription.partitions())
+                                .hasSize(assertion.getPartitions());
+                    }
+                    if (assertion.getReplicationFactor() != null) {
+                        assertThat(topicDescription.partitions().get(0).replicas())
+                                .hasSize(assertion.getReplicationFactor());
+                    }
+                }
+
             }
             case PRODUCE -> {
                 var action = ((Scenario.ProduceAction) _action);
@@ -657,45 +658,45 @@ public class ScenarioTest {
                 properties.put(ProducerConfig.ACKS_CONFIG, action.getAcks() == null ? "1" : action.getAcks());
                 properties.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, action.getCompression() == null ? "none" : action.getCompression());
 
-                try (var producer = clientFactory.kafkaProducer(properties)) {
-                    try {
-                        produce(action.getTopic(), action.getMessages(), producer);
+                var producer = clientFactory.kafkaProducer(properties);
+                try {
+                    produce(action.getTopic(), action.getMessages(), producer);
 
 
-                        String command = action.getMessages()
-                                .stream()
-                                .map(message ->
-                                        format("""
-                                                        echo '%s' | \\
-                                                            kafka-console-producer \\
-                                                                --bootstrap-server %s%s%s%s \\
-                                                                --topic %s
-                                                        """,
-                                                message.getValue(),
-                                                kafkaBoostrapServers(services, action),
-                                                action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
-                                                action.getAcks() == null ? "" : " \\\n        --request-required-acks  " + action.getAcks(),
-                                                action.getCompression() == null ? "" : " \\\n        --compression-codec  " + action.getCompression(),
-                                                action.getTopic()))
-                                .collect(joining("\n"));
-                        code(scenario, action, id, removeEnd(command, "\n"));
+                    String command = action.getMessages()
+                            .stream()
+                            .map(message ->
+                                    format("""
+                                                    echo '%s' | \\
+                                                        kafka-console-producer \\
+                                                            --bootstrap-server %s%s%s%s \\
+                                                            --topic %s
+                                                    """,
+                                            message.getValue(),
+                                            kafkaBoostrapServers(services, action),
+                                            action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
+                                            action.getAcks() == null ? "" : " \\\n        --request-required-acks  " + action.getAcks(),
+                                            action.getCompression() == null ? "" : " \\\n        --compression-codec  " + action.getCompression(),
+                                            action.getTopic()))
+                            .collect(joining("\n"));
+                    code(scenario, action, id, removeEnd(command, "\n"));
 
 
-                        System.out.println(action);
-                        if (action.isAssertError()) {
-                            Assertions.fail("Produce should have failed");
-                        }
-                    } catch (Exception e) {
-                        if (!action.getAssertErrorMessages().isEmpty()) {
-                            assertThat(e.getMessage())
-                                    .contains(action.getAssertErrorMessages());
-                        }
-                        if (!action.isAssertError()) {
-                            Assertions.fail("Could not produce message on " + action.getTopic(), e);
-                        }
-                        log.error("could not produce message ", e);
+                    System.out.println(action);
+                    if (action.isAssertError()) {
+                        Assertions.fail("Produce should have failed");
                     }
+                } catch (Exception e) {
+                    if (!action.getAssertErrorMessages().isEmpty()) {
+                        assertThat(e.getMessage())
+                                .contains(action.getAssertErrorMessages());
+                    }
+                    if (!action.isAssertError()) {
+                        Assertions.fail("Could not produce message on " + action.getTopic(), e);
+                    }
+                    log.error("could not produce message ", e);
                 }
+
             }
             case CONSUME -> {
                 var action = ((Scenario.ConsumeAction) _action);
@@ -705,6 +706,9 @@ public class ScenarioTest {
                 }
                 if (!properties.containsKey("auto.offset.reset")) {
                     properties.put("auto.offset.reset", "earliest");
+                }
+                if (!properties.contains(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG)) {
+                    properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
                 }
                 final long timeout;
                 if (action.getTimeout() != null) {
@@ -724,30 +728,30 @@ public class ScenarioTest {
                     maxRecords = 100;
                 }
 
-                try (var consumer = clientFactory.consumer(properties)) {
-                    consumer.subscribe(Arrays.asList(action.getTopic()));
-                    int recordCount = 0;
-                    long startTime = System.currentTimeMillis();
-                    var records = new ArrayList<ConsumerRecord<String, String>>();
+                var consumer = clientFactory.consumer(properties);
+                consumer.subscribe(Arrays.asList(action.getTopic()));
+                int recordCount = 0;
+                long startTime = System.currentTimeMillis();
+                var records = new ArrayList<ConsumerRecord<String, String>>();
 
-                    while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
-                        if (!(System.currentTimeMillis() < startTime + timeout)) break;
-                        var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
-                        recordCount += consumedRecords.count();
-                        for (var record : consumedRecords) {
-                            if (action.getShowRecords()) {
-                                System.out.println("[p:" + record.partition() + "/o:" + record.offset() + "] " + record.value());
-                            }
-                            records.add(record);
+                while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
+                    if (!(System.currentTimeMillis() < startTime + timeout)) break;
+                    var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
+                    recordCount += consumedRecords.count();
+                    for (var record : consumedRecords) {
+                        if (action.getShowRecords()) {
+                            System.out.println("[p:" + record.partition() + "/o:" + record.offset() + "] " + record.value());
                         }
+                        records.add(record);
                     }
-                    assertThat(records).isNotNull();
-                    if (Objects.nonNull(action.getAssertSize())) {
-                        assertThat(records.size())
-                                .isGreaterThanOrEqualTo(action.getAssertSize());
-                    }
-                    assertRecords(records, action.getAssertions());
                 }
+                assertThat(records).isNotNull();
+                if (Objects.nonNull(action.getAssertSize())) {
+                    assertThat(records.size())
+                            .isGreaterThanOrEqualTo(action.getAssertSize());
+                }
+                assertRecords(records, action.getAssertions());
+
                 code(scenario, action, id, """
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
@@ -916,10 +920,15 @@ public class ScenarioTest {
 
                 ProcessBuilder processBuilder = new ProcessBuilder();
                 processBuilder.directory(executionFolder);
+                String command = ((Scenario.CommandAction) action).getCommand();
                 if (action.isDaemon()) {
-                    processBuilder.command("sh", "-c", "nohup " + ((Scenario.CommandAction) action).getCommand() + "&");
+                    processBuilder.command("sh", "-c", "nohup " + command + "&");
                 } else {
-                    processBuilder.command("sh", "-c", ((Scenario.CommandAction) action).getCommand());
+                    if (command.equals("docker compose down --volumes")) {
+                        processBuilder.command("sh", "-c", "docker rm -f $(docker ps -aq) ; " + command);
+                    } else {
+                        processBuilder.command("sh", "-c", command);
+                    }
                 }
                 processBuilder.redirectErrorStream(true);
                 Process process = processBuilder.start();
@@ -952,7 +961,7 @@ public class ScenarioTest {
                 }
                 code(scenario, action, id,
                         "%s",
-                        ((Scenario.CommandAction) action).getCommand());
+                        command);
 
             }
             case SH -> {
