@@ -218,7 +218,11 @@ public class ScenarioTest {
             for (var file : scenarioFolder.listFiles()) {
                 if (isScenario(file)) {
                     Scenario scenario = scenarioYamlConfigReader.readYamlInResources(file.getPath());
-                    scenarios.add(Arguments.of(scenario, scenarioFolder));
+                    if (scenario.isEnabled()) {
+                        scenarios.add(Arguments.of(scenario, scenarioFolder));
+                    } else {
+                        log.warn("Scenarion {} is not enabled", scenario.getTitle());
+                    }
                 }
             }
         }
@@ -276,11 +280,11 @@ public class ScenarioTest {
         appendTo("record-asciinema.sh", format(RECORD_ASCIINEMA_SH, scenario.getTitle()));
         runScenarioSteps(scenario, actions);
 
-        if (scenario.getRecordOutput()) {
+        if (scenario.isRecordOutput()) {
             executeSh(true, "Recording outputs", "sh", "record-output.sh");
         }
 
-        if (scenario.getRecordAscinema()) {
+        if (scenario.isRecordAscinema()) {
             executeSh(true, "Recording asciinema", "sh", "record-asciinema.sh");
         }
 
@@ -352,8 +356,8 @@ public class ScenarioTest {
                 //
             }
             case INTRODUCTION -> {
-                executeSh(false, "Starting docker behind the scene, to have a smoorth recording",
-                        "docker", "compose", "up", "-d", "--wait");
+                executeSh(false, "Starting docker behind the scene, to have a smooth recording",
+                        "docker", "compose", "up", "--detach", "--wait");
             }
             case FILE -> {
                 var action = ((Scenario.FileAction) _action);

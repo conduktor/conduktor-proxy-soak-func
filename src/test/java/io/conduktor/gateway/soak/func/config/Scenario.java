@@ -15,8 +15,9 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 @AllArgsConstructor
 public class Scenario {
     protected String title;
-    protected Boolean recordAscinema = false;
-    protected Boolean recordOutput = false;
+    protected boolean enabled = true;
+    protected boolean recordAscinema = false;
+    protected boolean recordOutput = false;
     private Map<String, Service> services;
     protected LinkedList<Action> actions;
 
@@ -129,9 +130,17 @@ public class Scenario {
                 return markdown;
             }
             return switch (command) {
-                case "docker compose down --volumes" -> "Remove all your docker processes and associated volumes";
-                case "docker compose up --detached --wait" ->
-                        "Start all your docker processes, wait for them to be up and ready, the detach";
+                case "docker compose down --volumes" -> """
+                        Remove all your docker processes and associated volumes
+                        
+                        * `--volumes`: Remove named volumes declared in the "volumes" section of the Compose file and anonymous volumes attached to containers.
+                        """;
+                case "docker compose up --detached --wait" -> """
+                        Start all your docker processes, wait for them to be up and ready, then run in background
+                                                
+                        * `--wait`: Wait for services to be `running|healthy`. Implies detached mode.
+                        * `--detach`: Detached mode: Run containers in the background
+                        """;
                 default -> null;
             };
         }
@@ -233,7 +242,7 @@ public class Scenario {
                     + " on `" + kafka + "`\n";
 
             for (CreateTopicRequest topic : topics) {
-                markdown += "* " + topic.getName() + " nbPartitions:" + topic.getPartitions() + " replicationFactor:" + topic.getReplicationFactor();
+                markdown += "* `" + topic.getName() + "` nbPartitions:" + topic.getPartitions() + " replicationFactor:" + topic.getReplicationFactor();
             }
 
             return markdown;
@@ -369,6 +378,7 @@ public class Scenario {
             }
             return "Failing over from `" + from + "` to `" + to + "`";
         }
+
         @Override
         public String getMarkdown() {
             if (StringUtils.isNotBlank(title)) {
@@ -433,7 +443,15 @@ public class Scenario {
             if (StringUtils.isNotBlank(markdown)) {
                 return markdown;
             }
-            return "Creating mapping from `" + topicPattern + "` to `" + physicalTopicName + "` in gateway `" + gateway + "`";
+            return String.format("""
+                            Let's tell the `%s` that topic matching the pattern `%s` need to be concentrated into the underlying `%s` physical topic.
+
+                            > [!NOTE]
+                            > You don’t need to create the physical topic that backs the concentrated topics, it will automatically be created when a client topic starts using the concentrated topic.
+                            """,
+                    getGateway(),
+                    topicPattern,
+                    physicalTopicName);
         }
 
         @Data
@@ -511,9 +529,9 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return switch(filename) {
+            return switch (filename) {
                 case "docker-compose.yaml" -> "Review the docker compose environment";
-                default ->"Review `" + filename + "`";
+                default -> "Review `" + filename + "`";
             };
         }
     }
