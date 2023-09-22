@@ -111,6 +111,7 @@ public class ScenarioTest {
                   --idle-time-limit 2 \\
                   --cols 140 --rows $rows \\
                   --command "sh type.sh $step.sh" \\
+                  --overwrite \\
                   asciinema/$step.asciinema
 
                 asciinemaLines=$(asciinema play -s 1000 asciinema/$step.asciinema | wc -l)
@@ -139,6 +140,7 @@ public class ScenarioTest {
               --idle-time-limit 2 \\
               --cols 140 --rows 40 \\
               --command "sh run.sh" \\
+              --overwrite \\
               asciinema/all.asciinema
 
             svg-term \\
