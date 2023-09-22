@@ -12,6 +12,7 @@ services:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
   gateway1:
     docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -21,6 +22,7 @@ services:
       gateway.host: http://localhost:8888
   gateway2:
     docker:
+      image: ghcr.io/conduktor/conduktor-gateway-distro
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -200,7 +202,6 @@ actions:
     assertSize: 1
 
   - type: CONSUME
-    enabled: false
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     topic: concentrated-topic-with-100-partitions
@@ -213,9 +214,10 @@ actions:
           expected: '{"msg":"hello world"}'
         headers:
           "PDK_originalPartitions":
-            operator: isNotBlank
+            operator: doesNotContain
           "PDK_originalTopic":
-            operator: isNotBlank
+            operator: doesNotContain
+
   - type: DOCKER
     command: docker compose down --volumes
 

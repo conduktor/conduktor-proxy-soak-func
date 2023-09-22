@@ -16,8 +16,8 @@ import static org.apache.commons.lang3.StringUtils.trimToEmpty;
 public class Scenario {
     protected String title;
     protected boolean enabled = true;
-    protected boolean recordAscinema = false;
-    protected boolean recordOutput = false;
+    protected boolean recordAscinema = true;
+    protected boolean recordOutput = true;
     private Map<String, Service> services;
     protected LinkedList<Action> actions;
 
@@ -295,7 +295,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Producing " + messages.size() + "message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "`";
+            return "Producing " + messages.size() +  " message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "`";
         }
 
         @Override

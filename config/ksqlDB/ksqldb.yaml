@@ -1,5 +1,4 @@
 title: ksqldb
-enabled: false
 services:
   kafka1:
     environment:

@@ -18,7 +18,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -49,7 +48,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
@@ -103,9 +101,6 @@ public class ScenarioTest {
             type_and_execute "$1"
             """;
     public static final String RECORD_ASCIINEMA_SH = """
-            docker rm -f $(docker ps -aq)
-            docker compose up -d --wait
-
             for stepSh in $(ls step*sh | sort ) ; do
                 echo "Processing asciinema for $stepSh " `date`
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
@@ -135,6 +130,9 @@ public class ScenarioTest {
                   asciinema/$step.asciinema \\
                   images/$step.gif
             done
+
+            docker rm -f $(docker ps -aq)
+            docker compose up -d --wait
 
             asciinema rec \\
               --title "%s" \\
@@ -177,6 +175,7 @@ public class ScenarioTest {
                 echo "Processing $stepSh " `date`
                 step=$(echo "$stepSh" | sed "s/.sh$//" )
                 sh -x $stepSh > output/$step.txt
+                echo " " >> output/$step.txt
 
                 awk '
                   BEGIN { content = ""; tag = "'$step-OUTPUT'" }
@@ -383,7 +382,7 @@ public class ScenarioTest {
 
                                         """,
                                 action.getFilename(),
-                                StringUtils.countMatches(fileContent, "\n") < 10 ? " on" : "",
+                                countMatches(fileContent, "\n") < 10 ? " on" : "",
                                 getExtension(action.getFilename()),
                                 trimToEmpty(fileContent)
                         ));
@@ -973,7 +972,7 @@ public class ScenarioTest {
                 var env = new HashMap<String, String>();
                 if (action.getKafka() != null) {
                     Properties properties = getProperties(services, action);
-                    if (StringUtils.isNotBlank(action.getKafkaConfig())) {
+                    if (isNotBlank(action.getKafkaConfig())) {
                         properties.put(KAFKA_CONFIG_FILE, action.getKafkaConfig());
                     }
 
@@ -1218,39 +1217,54 @@ public class ScenarioTest {
         for (Scenario.RecordAssertion recordAssertion : recordAssertions) {
             boolean validKey = validate(recordAssertion.getKey(), keys);
             boolean validValues = validate(recordAssertion.getValue(), values);
-            boolean validHeader = validateHeaders(recordAssertion, headers);
+            boolean validHeader = validateHeaders(recordAssertion.getHeaders(), headers);
             if (isNotBlank(recordAssertion.getDescription())) {
                 log.info("Test: " + recordAssertion.getDescription());
             }
             if (!(validKey && validValues && validHeader)) {
-                Assertions.fail(recordAssertion.getDescription() + " failed " + values);
+                Assertions.fail(
+                        String.format("""
+                                        Failure %s
+                                                                                
+                                        values: %s %s
+                                        key: %s %s
+                                        header: %s %s
+                                        """,
+                                recordAssertion.getDescription(),
+                                "" + validValues,
+                                validValues ? "" : String.join(values, ","),
+                                validKey,
+                                validKey ? "" : String.join(keys, ","),
+                                validHeader,
+                                validHeader ? "" : headers));
             }
         }
     }
 
-    private static boolean validateHeaders(Scenario.RecordAssertion recordAssertion, List<Header> headers) {
-        if (recordAssertion.getHeaders().isEmpty()) {
+    private static boolean validateHeaders(LinkedHashMap<String, Scenario.Assertion> assertions, List<Header> headers) {
+        if (assertions.isEmpty()) {
             return true;
         }
 
-        //recordAssertion.getHeaderKeys().
-        for (Scenario.Assertion headerKeyAssertion : recordAssertion.getHeaderKeys()) {
-            headers.stream().filter(header -> validate(headerKeyAssertion, header.key())).findFirst().isPresent();
-        }
+        String headersAsString = headers
+                .stream()
+                .map(e -> e.key() + ":" + (e.value() == null ? "" : e.value()))
+                .collect(joining(", "));
 
-        for (String headerKey : recordAssertion.getHeaders().keySet()) {
-            Scenario.Assertion headerAssertion = recordAssertion.getHeaders().get(headerKey);
-            String headerValues = headers
-                    .stream()
-                    .filter(e -> headerKey.equals(e.key()))
-                    .map(h -> new String(h.value()))
-                    .toList()
-                    .stream().collect(Collectors.joining("\n"));
-            if (!validate(headerAssertion, headerValues)) {
-                return false;
+        boolean valid = true;
+        for (String headerKey : assertions.keySet()) {
+            Scenario.Assertion assertion = new Scenario.Assertion();
+            assertion.setOperator(assertions.get(headerKey).getOperator());
+            assertion.setExpected(headerKey + ":" + (assertion.getExpected() == null ? "" : assertion.getExpected()));
+            if (!validate(assertion, headersAsString)) {
+                log.warn(assertion + " failed");
+                valid = false;
             }
         }
-        return true;
+        if (!valid) {
+            log.warn("Header validation failed, input was [" + headersAsString + "]");
+        }
+        return valid;
     }
 
     public static boolean validate(Scenario.Assertion assertion, String data) {
@@ -1262,6 +1276,8 @@ public class ScenarioTest {
             case "satisfies" -> satisfies(data, expected);
             case "isBlank" -> isBlank(data);
             case "isNotBlank" -> isNotBlank(data);
+            case "isEqualTo" -> expected.equals(data);
+            case "isEqualToIgnoreCase" -> equalsIgnoreCase(expected, data);
             case "containsIgnoreCase" -> containsIgnoreCase(data, expected);
             case "contains" -> contains(data, expected);
             case "doesNotContain" -> !contains(data, expected);
@@ -1322,7 +1338,7 @@ public class ScenarioTest {
                                 </details>
 
                                 """,
-                        StringUtils.removeEnd(format(format, args), "\n"),
+                        removeEnd(format(format, args), "\n"),
                         action.getTitle(),
                         step,
                         step
