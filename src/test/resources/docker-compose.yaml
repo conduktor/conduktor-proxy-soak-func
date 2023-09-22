@@ -177,44 +177,6 @@ services:
         target: /clientConfig
         read_only: true
 
-  ksqldb-server:
-    image: confluentinc/ksqldb-server:0.29.0
-    hostname: ksqldb-server
-    container_name: ksqldb-server
-    network_mode: host
-    profiles:
-      - ksqldb
-    depends_on:
-      kafka1:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      kafka3:
-        condition: service_healthy
-    ports:
-      - "8088:8088"
-    healthcheck:
-      test: curl localhost:8088/health
-      interval: 5s
-      retries: 25
-    environment:
-      KSQL_LISTENERS: http://0.0.0.0:8088
-      KSQL_BOOTSTRAP_SERVERS: ${BOOTSTRAP_SERVERS:-}
-      KSQL_SECURITY_PROTOCOL: ${SECURITY_PROTOCOL:-}
-      KSQL_SASL_MECHANISM: ${SASL_MECHANISM:-}
-      KSQL_SASL_JAAS_CONFIG: ${SASL_JAAS_CONFIG:-}
-      KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: "true"
-      KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
-  ksqldb-cli:
-    image: confluentinc/ksqldb-cli:0.29.0
-    container_name: ksqldb-cli
-    profiles:
-      - ksqldb
-    depends_on:
-      ksqldb-server:
-        condition: service_healthy
-    entrypoint: /bin/sh
-    tty: "true"
 
 networks:
   demo:

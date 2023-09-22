@@ -111,6 +111,7 @@ public class Scenario {
     @Data
     public static class DockerAction extends CommandAction {
         protected String command;
+        protected LinkedHashMap<String, String> environment = new LinkedHashMap<>();
 
         @Override
         public String getTitle() {
@@ -562,7 +563,7 @@ public class Scenario {
     @NoArgsConstructor
     @AllArgsConstructor
     public static abstract class CommandAction extends KafkaAction {
-        public boolean showOutput = true;
+        public boolean showOutput = false;
         public boolean isDaemon = false;
         public Integer assertError;
         public Integer assertExitCode;

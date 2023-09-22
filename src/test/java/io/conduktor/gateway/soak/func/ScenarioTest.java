@@ -395,19 +395,23 @@ public class ScenarioTest {
                 TopicMapping topicMapping = TopicMapping
                         .builder()
                         .physicalTopicName(action.getPhysicalTopicName())
+                        .concentrated(true)
                         .build();
                 String topicPattern = uriEncode(action.getTopicPattern());
 
                 log.debug("Adding topic mapping in " + vcluster + " for " + topicPattern + " with " + topicMapping);
 
-                given()
+                Response post = given()
                         .baseUri(gateway + "/admin/vclusters/v1")
                         .auth()
+
                         .basic(ADMIN_USER, ADMIN_PASSWORD)
                         .contentType(ContentType.JSON)
                         .body(topicMapping).
                         when()
-                        .post("/vcluster/{vcluster}/topics/{topicPattern}", vcluster, topicPattern).
+                        .urlEncodingEnabled(false)
+                        .post("/vcluster/{vcluster}/topics/{topicPattern}", vcluster, topicPattern);
+                post.
                         then()
                         .statusCode(SC_OK);
 
@@ -920,8 +924,33 @@ public class ScenarioTest {
             case DOCKER -> {
                 var action = ((Scenario.DockerAction) _action);
 
+                if (action.getKafka() != null) {
+                    Properties properties = getProperties(services, action);
+                    var keysToRemove = new ArrayList<String>();
+                    for (String envKey : action.getEnvironment().keySet()) {
+                        boolean found = false;
+                        for (String key : properties.stringPropertyNames()) {
+                            String formattedKey = key.toUpperCase().replace(".", "_");
+                            String value = properties.getProperty(key);
+                            String searchString = "${" + formattedKey + "}";
+                            String searchStringWithDefault = "${" + formattedKey + ":-}";
+                            if (action.getEnvironment().get(envKey).contains(searchString) || action.getEnvironment().get(envKey).contains(searchStringWithDefault)) {
+                                action.getEnvironment().put(envKey, replace(action.getEnvironment().get(envKey), searchString, value));
+                                action.getEnvironment().put(envKey, replace(action.getEnvironment().get(envKey), searchStringWithDefault, value));
+                                found = true;
+                            }
+                        }
+                        if (found == false) {
+                            keysToRemove.add(envKey);
+                        }
+                    }
+                    keysToRemove.forEach(key -> action.getEnvironment().remove(key));
+                }
+
                 ProcessBuilder processBuilder = new ProcessBuilder();
                 processBuilder.directory(executionFolder);
+                processBuilder.environment().putAll(action.getEnvironment());
+
                 String command = ((Scenario.CommandAction) action).getCommand();
                 if (action.isDaemon()) {
                     processBuilder.command("sh", "-c", "nohup " + command + "&");
@@ -929,7 +958,7 @@ public class ScenarioTest {
                     if (command.equals("docker compose down --volumes")) {
                         processBuilder.command("sh", "-c", "docker rm -f $(docker ps -aq) ; " + command);
                     } else {
-                        processBuilder.command("sh", "-c", command);
+                        processBuilder.command("bash", "-c", command);
                     }
                 }
                 processBuilder.redirectErrorStream(true);
@@ -1362,9 +1391,7 @@ public class ScenarioTest {
         }
     }
 
-
     public static String uriEncode(String s) throws Exception {
         return URLEncoder.encode(s, "UTF-8").replace("*", "%2A");
-
     }
 }
