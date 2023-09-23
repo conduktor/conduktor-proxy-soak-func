@@ -29,6 +29,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -286,7 +287,7 @@ public class ScenarioTest {
         runScenarioSteps(scenario, actions);
 
         if (scenario.isRecordOutput()) {
-            executeSh(true, "record-output.sh");
+            executeSh(true, "sh", "record-output.sh");
         }
 
         if (scenario.isRecordAscinema()) {
@@ -768,7 +769,11 @@ public class ScenarioTest {
                     recordCount += consumedRecords.count();
                     for (var record : consumedRecords) {
                         if (action.getShowRecords()) {
-                            System.out.println("[p:" + record.partition() + "/o:" + record.offset() + "] " + record.value());
+                            String headers = "";
+                            if (action.getShowHeaders() && record.headers() != null) {
+                                headers = Arrays.stream(record.headers().toArray()).map(e->e.key() + ":" + new String(e.value())).collect(joining(", ")) + " ";
+                            }
+                            System.out.println(headers + record.value());
                         }
                         records.add(record);
                     }

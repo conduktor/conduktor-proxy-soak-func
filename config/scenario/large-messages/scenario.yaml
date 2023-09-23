@@ -135,6 +135,7 @@ actions:
     kafka: teamA
     kafkaConfig: teamA-sa.properties
     showOutput: true
+    iteration: 4
     script: |
       requiredMemory=$(( 2 * $(cat large-message.bin | wc -c | awk '{print $1}')))
   

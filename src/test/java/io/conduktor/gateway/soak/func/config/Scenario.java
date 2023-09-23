@@ -408,7 +408,7 @@ public class Scenario {
                     .values()
                     .stream()
                     .flatMap(e -> e.keySet().stream())
-                    .collect(joining(",", "`", "`")) + " in `" + gateway + "`";
+                    .collect(joining(",", "`", "`"));
         }
     }
 
