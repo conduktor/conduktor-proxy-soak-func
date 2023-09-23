@@ -303,8 +303,7 @@ public class ScenarioTest {
         recording.directory(executionFolder);
         recording.redirectErrorStream(true);
         recording.command(command);
-        Process process = null;
-            process = recording.start();
+        Process process = recording.start();
         String output = showProcessOutput(process, showOutput);
         process.waitFor();
         return output;
@@ -858,8 +857,8 @@ public class ScenarioTest {
 
                                                 """,
                                         pluginName,
-                                        action.getUsername() == null ? "" : " for " + action.getUsername(),
                                         pluginBody.getPluginClass(),
+                                        action.getUsername() == null ? "" : " for " + action.getUsername(),
                                         PRETTY_OBJECT_MAPPER
                                                 .writeValueAsString(pluginBody)));
 
