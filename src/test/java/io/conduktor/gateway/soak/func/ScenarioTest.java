@@ -286,35 +286,44 @@ public class ScenarioTest {
         runScenarioSteps(scenario, actions);
 
         if (scenario.isRecordOutput()) {
-            executeSh(true, "Recording outputs", "sh", "record-output.sh");
+            executeSh(true, "record-output.sh");
         }
 
         if (scenario.isRecordAscinema()) {
-            executeSh(true, "Recording asciinema", "sh", "record-asciinema.sh");
+            executeSh(true, "sh", "record-asciinema.sh");
         }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
     }
 
-    private void executeSh(boolean showOutput, String description, String... command) throws IOException, InterruptedException {
-        log.info("{} {}", description, String.join(" ", command));
+    public static String executeSh(boolean showOutput, String... command) {
+        try {
+        log.info("{}", String.join(" ", command));
         ProcessBuilder recording = new ProcessBuilder();
         recording.directory(executionFolder);
         recording.redirectErrorStream(true);
         recording.command(command);
-        Process process = recording.start();
-        if (showOutput) {
-            showProcessOutput(process);
-        }
+        Process process = null;
+            process = recording.start();
+        String output = showProcessOutput(process, showOutput);
         process.waitFor();
+        return output;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void showProcessOutput(Process process) throws IOException {
+    private static String showProcessOutput(Process process, boolean showOutput) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String ret = "";
             String line;
             while ((line = reader.readLine()) != null) {
-                System.out.println(line);
+                if (showOutput) {
+                    System.out.println(line);
+                }
+                ret += line + "\n";
             }
+            return ret;
         }
     }
 
@@ -361,8 +370,7 @@ public class ScenarioTest {
                 //
             }
             case INTRODUCTION -> {
-                executeSh(false, "Starting docker behind the scene to have a smooth recording",
-                        "docker", "compose", "up", "--detach", "--wait");
+                executeSh(false, "docker", "compose", "up", "--detach", "--wait");
             }
             case FILE -> {
                 var action = ((Scenario.FileAction) _action);
@@ -382,11 +390,24 @@ public class ScenarioTest {
 
                                         </details>
 
+                                        %s
                                         """,
                                 action.getFilename(),
                                 countMatches(fileContent, "\n") < 10 ? " on" : "",
                                 getExtension(action.getFilename()),
-                                trimToEmpty(fileContent)
+                                trimToEmpty(fileContent),
+                                !"docker-compose.yaml".equals(action.getFilename()) ? "" : format("""
+                                         <details%s>
+                                          <summary>docker compose ps</summary>
+
+                                        ```
+                                        %s
+                                        ```
+
+                                        </details>
+                                        """,
+                                        countMatches(fileContent, "\n") < 10 ? " on" : "",
+                                        ScenarioTest.executeSh(false, "bash", "-c", "docker compose ps"))
                         ));
             }
             case ADD_TOPIC_MAPPING -> {

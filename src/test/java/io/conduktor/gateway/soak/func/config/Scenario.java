@@ -2,6 +2,7 @@ package io.conduktor.gateway.soak.func.config;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import io.conduktor.gateway.soak.func.ScenarioTest;
 import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -86,7 +87,7 @@ public class Scenario {
         public boolean enabled = true;
 
         public String simpleMessage() {
-            return type + " " + getTitle();
+            return type + ": " + getTitle();
         }
 
         public String markdownHeader() {
@@ -531,6 +532,14 @@ public class Scenario {
         protected String filename;
 
         @Override
+        public int getHeaderLevel() {
+            if (headerLevel != null) {
+                return headerLevel;
+            }
+            return 3;
+        }
+
+        @Override
         public String getTitle() {
             if (StringUtils.isNotBlank(title)) {
                 return title;
@@ -540,6 +549,23 @@ public class Scenario {
                 default -> "Review `" + filename + "`";
             };
         }
+
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return switch (filename) {
+                case "docker-compose.yaml" -> String.format("""
+                        As can be seen from `docker-compose.yaml` the demo environment consists of the following services:
+                        
+                        %s
+                        """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^  [:print:]*:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g\""));
+                default -> null;
+            };
+        }
+        //
     }
 
     @Data

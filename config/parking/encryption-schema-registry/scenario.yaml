@@ -38,13 +38,6 @@ actions:
 
   - type: FILE
     filename: docker-compose.yaml
-    markdown: |
-      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
-      
-      * A single Zookeeper Server
-      * A main 3 nodes Kafka cluster
-      * A 2 nodes Conduktor Gateway server
-      * 1 schema registry
 
   - type: DOCKER
     command: docker compose up --detach --wait

@@ -180,20 +180,10 @@ actions:
 
   - type: FILE
     filename: docker-compose.yaml
-    headerLevel: 3
-    markdown: |
-      As can be seen from `docker-compose.yaml` the demo environment consists of the following:
-  
-      * A single Zookeeper Server
-      * A main 3 node Kafka cluster
-      * A failover 3 node Kafka cluster
-      * A 2 node Conduktor Gateway server
-      * A MirrorMaker container
 
   - type: FILE
     title: Review the Gateway configuration
     filename: clusters.yaml
-    headerLevel: 3
     markdown: |
       The Kafka brokers used by Gateway are stored in `clusters.yaml` and this is mounted into the Gateway container.
       
@@ -203,7 +193,6 @@ actions:
 
   - type: FILE
     title: Review the Mirror-Maker configuration
-    headerLevel: 3
     filename: mm2.properties
     markdown: |
       MirrorMaker is configured to replicate all topics and groups from the main cluster to the failover cluster (see `mm2.properties`).
