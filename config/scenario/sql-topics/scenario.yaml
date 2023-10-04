@@ -30,13 +30,9 @@ services:
 
 actions:
   - type: INTRODUCTION
-    title: What is a safeguard?
+    title: What is sql topics?
     markdown: |
-      Enforce your rules where it matters
-      
-      Safeguard ensures that your teams follow your rules and can't break convention. 
-      
-      Enable your teams, prevent common mistakes, protect your infra. 
+      Don't reinvent the wheel to filter and project your messages, just use SQL!
 
   - type: ASCIINEMA
 

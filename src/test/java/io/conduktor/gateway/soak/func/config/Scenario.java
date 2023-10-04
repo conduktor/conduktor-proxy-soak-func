@@ -561,7 +561,7 @@ public class Scenario {
                         As can be seen from `docker-compose.yaml` the demo environment consists of the following services:
                         
                         %s
-                        """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^  [:print:]*:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g\""));
+                        """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^[[:space:]]\\{2\\}[^[:space:]]*\\:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g\""));
                 default -> null;
             };
         }

@@ -29,7 +29,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.header.Header;
-import org.apache.kafka.common.header.Headers;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,120 +73,6 @@ public class ScenarioTest {
 
     static final String currentDate = new SimpleDateFormat("yyyy.MM.dd-HH:mm:ss").format(Calendar.getInstance().getTime());
 
-    public static final String TYPE_SH = """
-            function type_and_execute() {
-              local GREEN="\\033[0;32m"
-              local WHITE='\\033[0;97m'
-              local RESET="\\033[0m"
-              local file="$1"
-              local chars=$(cat $file| wc -c)
-
-              printf "${WHITE}"
-              if [ "$chars" -lt 70 ] ; then
-                  cat $file | pv -qL 30
-              elif [ "$chars" -lt 100 ] ; then
-                  cat $file | pv -qL 50
-              elif [ "$chars" -lt 250 ] ; then
-                  cat $file | pv -qL 100
-              elif [ "$chars" -lt 500 ] ; then
-                  cat $file | pv -qL 200
-              else
-                  cat $file | pv -qL 400
-              fi
-              echo "${RESET}"
-
-              sh $file
-            }
-
-            type_and_execute "$1"
-            """;
-    public static final String RECORD_ASCIINEMA_SH = """
-            for stepSh in $(ls step*sh | sort ) ; do
-                echo "Processing asciinema for $stepSh " `date`
-                step=$(echo "$stepSh" | sed "s/.sh$//" )
-                rows=20
-
-                asciinema rec \\
-                  --title "$step" \\
-                  --idle-time-limit 2 \\
-                  --cols 140 --rows $rows \\
-                  --command "sh type.sh $step.sh" \\
-                  --overwrite \\
-                  asciinema/$step.asciinema
-
-                asciinemaLines=$(asciinema play -s 1000 asciinema/$step.asciinema | wc -l)
-                if [ $asciinemaLines -lt 20 ] ; then
-                  rows=$asciinemaLines
-                fi
-
-                svg-term \\
-                  --in asciinema/$step.asciinema \\
-                  --out images/$step.svg \\
-                  --height $rows \\
-                  --window true
-
-                agg \\
-                  --theme "asciinema" \\
-                  --last-frame-duration 5 \\
-                  asciinema/$step.asciinema \\
-                  images/$step.gif
-            done
-
-            docker rm -f $(docker ps -aq)
-            docker compose up -d --wait
-
-            asciinema rec \\
-              --title "%s" \\
-              --idle-time-limit 2 \\
-              --cols 140 --rows 40 \\
-              --command "sh run.sh" \\
-              --overwrite \\
-              asciinema/all.asciinema
-
-            svg-term \\
-              --in asciinema/all.asciinema \\
-              --width 140 --height 20 \\
-              --out images/all.svg \\
-              --window true
-
-            asciinemaUid=$(asciinema upload asciinema/all.asciinema 2>&1 | grep http | awk '{print $1}' | cut -d '/' -f 5)
-            gsed -i "s/ASCIINEMA_UID/$asciinemaUid/g" Readme.md
-                        
-            markers=""
-            step=1
-            for time in $(grep "#" asciinema/all.asciinema | cut -d "." -f 1 | sed "s/\\[//g") ; do
-              stepTitle=`grep "execute.*sh" run.sh | awk "NR==$step" |cut -d '"' -f 4 | tr -d '\\'`
-              echo $stepTitle
-              markers=""\"$markers
-            $time.0 - $step - $stepTitle""\"
-              step=$((step+1))
-            done
-                        
-                        
-            curl "https://asciinema.org/a/$asciinemaUid" \\
-              -H 'authority: asciinema.org' \\
-              -H 'content-type: application/x-www-form-urlencoded' \\
-              -H 'cookie: a608749=1; a608760=1; a608768=1; auth_token=E1WbYRLAwFWjtpBumGG5; a608770=1; a608897=1; a608906=1; _asciinema_key=SFMyNTY.g3QAAAACbQAAAAtfY3NyZl90b2tlbm0AAAAYRTNXN1cteG1hT1h4T1l5amFFZkN2Y0lZbQAAAAd1c2VyX2lkYgABp3M.00p16kmv-MCNeoQG_CCcdMNEIcbeoX7Sz4LW9f-gwcQ' \\
-              -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36' \\
-              --data-raw '_method=put&_csrf_token=I0cIAgAZEzQ1GwArGCAdXA4uI3sQAS4gft_5W4kYTTXSWyd6okE8fbgy' \\
-              --data-urlencode "asciicast[markers]=$markers"
-
-            """;
-    public static final String RECORD_COMMAND_SH = """
-            for stepSh in $(ls step*sh | sort ) ; do
-                echo "Processing $stepSh " `date`
-                step=$(echo "$stepSh" | sed "s/.sh$//" )
-                sh -x $stepSh > output/$step.txt
-                echo " " >> output/$step.txt
-
-                awk '
-                  BEGIN { content = ""; tag = "'$step-OUTPUT'" }
-                  FNR == NR { content = content $0 ORS; next }
-                  { gsub(tag, content); print }
-                ' output/$step.txt Readme.md > temp.txt && mv temp.txt Readme.md
-
-            done
-            """;
     public static final String KAFKA_CONFIG_FILE = "KAFKA_CONFIG_FILE";
     public static final ObjectMapper PRETTY_OBJECT_MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -247,43 +132,17 @@ public class ScenarioTest {
         createDirectory(executionFolder.getAbsolutePath(), "/asciinema");
         createDirectory(executionFolder.getAbsolutePath(), "/images");
         createDirectory(executionFolder.getAbsolutePath(), "/output");
+        copyInputStreamToFile(ScenarioTest.class.getResourceAsStream("/utils.sh"), new File(executionFolder.getAbsolutePath(), "/utils.sh"));
+        copyInputStreamToFile(ScenarioTest.class.getResourceAsStream("/record-asciinema.sh"), new File(executionFolder.getAbsolutePath(), "/record-asciinema.sh"));
+        copyInputStreamToFile(ScenarioTest.class.getResourceAsStream("/record-output.sh"), new File(executionFolder.getAbsolutePath(), "/record-output.sh"));
 
         appendTo("docker-compose.yaml", getUpdatedDockerCompose(scenario));
         appendTo("run.sh", """
                 #!/bin/sh
-
-                RED='\\033[0;31m'
-                GREEN='\\033[0;32m'
-                YELLOW='\\033[0;33m'
-                BLUE='\\033[0;34m'
-                WHITE='\\033[0;97m'
-                NC='\\033[0m' # No Color
-
-                function banner() {
-                    printf "$1# $2$NC\\n" | pv -qL 20
-                }
-
-                function header() {
-                    banner "$RED" "$1"
-                }
-
-                function step() {
-                    banner "$BLUE" "$1"
-                }
                                 
-                function execute() {
-                    local script=$1
-                    local title=$2
-                    step "$title"
-                    sh type.sh "$script"
-                    echo
-                }
-                                
+                . utils.sh
 
                 """);
-        appendTo("type.sh", TYPE_SH);
-        appendTo("record-output.sh", RECORD_COMMAND_SH);
-        appendTo("record-asciinema.sh", format(RECORD_ASCIINEMA_SH, scenario.getTitle()));
         runScenarioSteps(scenario, actions);
 
         if (scenario.isRecordOutput()) {
@@ -291,7 +150,7 @@ public class ScenarioTest {
         }
 
         if (scenario.isRecordAscinema()) {
-            executeSh(true, "sh", "record-asciinema.sh");
+            executeSh(true, "sh", "record-asciinema.sh", scenario.getTitle());
         }
 
         log.info("Finished to test: {} successfully", scenario.getTitle());
@@ -299,15 +158,15 @@ public class ScenarioTest {
 
     public static String executeSh(boolean showOutput, String... command) {
         try {
-        log.info("{}", String.join(" ", command));
-        ProcessBuilder recording = new ProcessBuilder();
-        recording.directory(executionFolder);
-        recording.redirectErrorStream(true);
-        recording.command(command);
-        Process process = recording.start();
-        String output = showProcessOutput(process, showOutput);
-        process.waitFor();
-        return output;
+            log.info("{}", String.join(" ", command));
+            ProcessBuilder recording = new ProcessBuilder();
+            recording.directory(executionFolder);
+            recording.redirectErrorStream(true);
+            recording.command(command);
+            Process process = recording.start();
+            String output = showProcessOutput(process, showOutput);
+            process.waitFor();
+            return output;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -397,15 +256,15 @@ public class ScenarioTest {
                                 getExtension(action.getFilename()),
                                 trimToEmpty(fileContent),
                                 !"docker-compose.yaml".equals(action.getFilename()) ? "" : format("""
-                                         <details%s>
-                                          <summary>docker compose ps</summary>
+                                                 <details%s>
+                                                  <summary>docker compose ps</summary>
 
-                                        ```
-                                        %s
-                                        ```
+                                                ```
+                                                %s
+                                                ```
 
-                                        </details>
-                                        """,
+                                                </details>
+                                                """,
                                         countMatches(fileContent, "\n") < 10 ? " on" : "",
                                         ScenarioTest.executeSh(false, "bash", "-c", "docker compose ps"))
                         ));
@@ -771,7 +630,7 @@ public class ScenarioTest {
                         if (action.getShowRecords()) {
                             String headers = "";
                             if (action.getShowHeaders() && record.headers() != null) {
-                                headers = Arrays.stream(record.headers().toArray()).map(e->e.key() + ":" + new String(e.value())).collect(joining(", ")) + " ";
+                                headers = Arrays.stream(record.headers().toArray()).map(e -> e.key() + ":" + new String(e.value())).collect(joining(", ")) + " ";
                             }
                             System.out.println(headers + record.value());
                         }

@@ -45,27 +45,8 @@ public class AsciinemaTest {
         File sh = new File(readme.getParent() + "/run.sh");
         sh.setExecutable(true);
         if (StringUtils.isNotBlank(code)) {
-            String header = """
-                    
-                    function execute() {
-                        chars=$(echo "$*" | wc -c)
-                        sleep 2
-                        printf "$"
-                        if [ "$chars" -lt 100 ] ; then
-                            echo "$*" | pv -qL 50
-                        elif [ "$chars" -lt 250 ] ; then
-                            echo "$*" | pv -qL 100
-                        elif [ "$chars" -lt 500 ] ; then
-                            echo "$*" | pv -qL 200
-                        else
-                            echo "$*" | pv -qL 400
-                        fi
-                        eval "$*"
-                    }
-
-                    """;
             System.out.println(readme.getAbsolutePath() + " converted");
-            FileUtils.writeStringToFile(sh, header + code, Charset.defaultCharset());
+            FileUtils.writeStringToFile(sh, code, Charset.defaultCharset());
         } else {
             System.out.println(readme.getAbsolutePath() + " does not have code block");
         }

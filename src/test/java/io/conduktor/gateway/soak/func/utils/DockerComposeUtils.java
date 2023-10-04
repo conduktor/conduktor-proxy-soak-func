@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.serializer.AnchorGenerator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
