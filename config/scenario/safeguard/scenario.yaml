@@ -391,7 +391,6 @@ actions:
   - type: AUDITLOG
     title: Check in the audit log that connection was denied
     kafka: kafka1
-    showRecords: true
     jqCommand: 'select(.type == "SAFEGUARD" and .eventData.plugin=="io.conduktor.gateway.interceptor.safeguard.LimitCommitOffsetPolicyPlugin")'
     assertions:
       - description: Confirm LimitConnectionPolicyPlugin audit has blocked commit

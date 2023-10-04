@@ -689,7 +689,7 @@ public class ScenarioTest {
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
-                        (action.getAssertSize() == null && action.getTimeout() == null) ? "" : " \\\n    --timeout-ms " + timeout,
+                        (timeout == 0) ? "" : " \\\n    --timeout-ms " + timeout,
                         action.getGroupId() == null ? "" : " \\\n    --group " + action.getGroupId(),
                         !action.getShowHeaders() ? " " : " \\\n    --property print.headers=true",
                         action.getShowHeaders() ? " " : "\\\n | " + action.getJq()
@@ -1308,14 +1308,7 @@ public class ScenarioTest {
 
                                 </details>
 
-                                <details>
-                                  <summary>Command output</summary>
-
-                                ```sh
                                 %s-OUTPUT
-                                ```
-
-                                </details>
 
                                 """,
                         removeEnd(format(format, args), "\n"),
