@@ -1,6 +1,8 @@
 package io.conduktor.gateway.soak.func;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
@@ -18,6 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -297,7 +300,7 @@ public class ScenarioTest {
                         then()
                         .statusCode(SC_OK);
 
-                code(scenario, action, id, """
+                code(scenario, action, id, "", """
                                 curl \\
                                     --silent \\
                                     --user "admin:conduktor" \\
@@ -350,7 +353,7 @@ public class ScenarioTest {
 
                 savePropertiesToFile(new File(executionFolder + "/" + action.getName() + "-" + action.getServiceAccount() + ".properties"), properties);
 
-                code(scenario, action, id,
+                code(scenario, action, id, "",
                         """
                                 token=$(curl \\
                                     --silent \\
@@ -379,6 +382,7 @@ public class ScenarioTest {
                 var action = ((Scenario.CreateTopicsAction) _action);
 
                 var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                String afterCommand = "";
                 for (Scenario.CreateTopicsAction.CreateTopicRequest topic : action.getTopics()) {
                     try {
                         createTopic(adminClient,
@@ -398,6 +402,7 @@ public class ScenarioTest {
                             Assertions.fail("Did not expect an error during the " + topic.getName() + " creation", e);
                         }
                         log.warn(topic + " creation failed", e);
+                        afterCommand = afterCommandException(e);
                     }
                 }
 
@@ -425,14 +430,14 @@ public class ScenarioTest {
                     );
 
                 }
-                code(scenario, action, id, createTopics);
+                code(scenario, action, id, afterCommand, createTopics);
 
             }
             case LIST_TOPICS -> {
                 var action = ((Scenario.ListTopicsAction) _action);
                 var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
                 Set<String> topics = adminClient.listTopics().names().get();
-                code(scenario, action, id, """
+                code(scenario, action, id, "", """
                                 kafka-topics \\
                                     --bootstrap-server %s%s \\
                                     --list
@@ -457,13 +462,15 @@ public class ScenarioTest {
                 var action = ((Scenario.AlterTopicAction) _action);
                 var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
                 for (Scenario.AlterTopicAction.AlterTopicRequest topic : action.getTopics()) {
+
+                    String afterCommand = "";
+                    List<ConfigEntry> configEntries = topic
+                            .getConfig()
+                            .entrySet()
+                            .stream()
+                            .map(e -> new ConfigEntry(e.getKey(), e.getValue()))
+                            .toList();
                     try {
-                        List<ConfigEntry> configEntries = topic
-                                .getConfig()
-                                .entrySet()
-                                .stream()
-                                .map(e -> new ConfigEntry(e.getKey(), e.getValue()))
-                                .toList();
 
                         Map<ConfigResource, Config> configs = Map.of(
                                 new ConfigResource(ConfigResource.Type.TOPIC, topic.getName()),
@@ -478,21 +485,6 @@ public class ScenarioTest {
                                         throw new RuntimeException(ex);
                                     }
                                 });
-
-
-                        code(scenario, action, id, """
-                                        kafka-topics \\
-                                            --bootstrap-server %s%s%s \\
-                                            --alter \\
-                                            --topic %s
-                                        """,
-                                kafkaBoostrapServers(services, action),
-                                action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
-                                configEntries
-                                        .stream()
-                                        .map(d -> " \\\n    --add-config " + d.name() + "=" + d.value())
-                                        .collect(joining("")),
-                                topic.getName());
                     } catch (Exception e) {
                         if (!action.getAssertErrorMessages().isEmpty()) {
                             assertThat(e.getMessage())
@@ -502,8 +494,23 @@ public class ScenarioTest {
                             Assertions.fail("Did not expect an error during update of " + topic.getName() + " ", e);
                         }
                         log.warn(topic + " update failed", e);
-
+                        afterCommand = afterCommandException(e);
                     }
+
+                    code(scenario, action, id, afterCommand, """
+                                    kafka-configs \\
+                                        --bootstrap-server %s%s \\
+                                        --alter \\
+                                        --entity-type topics \\
+                                        --entity-name %s%s
+                                    """,
+                            kafkaBoostrapServers(services, action),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
+                            topic.getName(),
+                            configEntries
+                                    .stream()
+                                    .map(d -> " \\\n    --add-config " + d.name() + "=" + d.value())
+                                    .collect(joining("")));
                 }
 
             }
@@ -515,7 +522,7 @@ public class ScenarioTest {
                         .allTopicNames()
                         .get();
                 for (String topic : action.getTopics()) {
-                    code(scenario, action, id, """
+                    code(scenario, action, id, "", """
                                     kafka-topics \\
                                         --bootstrap-server %s%s \\
                                         --describe \\
@@ -547,28 +554,10 @@ public class ScenarioTest {
                 properties.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, action.getCompression() == null ? "none" : action.getCompression());
 
                 var producer = clientFactory.kafkaProducer(properties);
+                String afterCommand = "";
                 try {
+
                     produce(action.getTopic(), action.getMessages(), producer);
-
-
-                    String command = action.getMessages()
-                            .stream()
-                            .map(message ->
-                                    format("""
-                                                    echo '%s' | \\
-                                                        kafka-console-producer \\
-                                                            --bootstrap-server %s%s%s%s \\
-                                                            --topic %s
-                                                    """,
-                                            message.getValue(),
-                                            kafkaBoostrapServers(services, action),
-                                            action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
-                                            action.getAcks() == null ? "" : " \\\n        --request-required-acks  " + action.getAcks(),
-                                            action.getCompression() == null ? "" : " \\\n        --compression-codec  " + action.getCompression(),
-                                            action.getTopic()))
-                            .collect(joining("\n"));
-                    code(scenario, action, id, removeEnd(command, "\n"));
-
 
                     System.out.println(action);
                     if (action.isAssertError()) {
@@ -583,10 +572,30 @@ public class ScenarioTest {
                         Assertions.fail("Could not produce message on " + action.getTopic(), e);
                     }
                     log.error("could not produce message ", e);
+                    afterCommand = afterCommandException(e);
                 }
 
+                String command = action.getMessages()
+                        .stream()
+                        .map(message ->
+                                format("""
+                                                echo '%s' | \\
+                                                    kafka-console-producer \\
+                                                        --bootstrap-server %s%s%s%s \\
+                                                        --topic %s
+                                                """,
+                                        message.getValue(),
+                                        kafkaBoostrapServers(services, action),
+                                        action.getKafkaConfig() == null ? "" : " \\\n        --producer.config " + action.getKafkaConfig(),
+                                        action.getAcks() == null ? "" : " \\\n        --request-required-acks  " + action.getAcks(),
+                                        action.getCompression() == null ? "" : " \\\n        --compression-codec  " + action.getCompression(),
+                                        action.getTopic()))
+                        .collect(joining("\n"));
+                code(scenario, action, id, afterCommand, removeEnd(command, "\n"));
+
+
             }
-            case CONSUME -> {
+            case CONSUME, AUDITLOG -> {
                 var action = ((Scenario.ConsumeAction) _action);
                 Properties properties = getProperties(services, action);
                 if (!properties.containsKey("group.id")) {
@@ -642,21 +651,33 @@ public class ScenarioTest {
                     assertThat(records.size())
                             .isGreaterThanOrEqualTo(action.getAssertSize());
                 }
-                assertRecords(records, action.getAssertions());
+                List<ConsumerRecord<String, String>> matchedRecords = assertRecords(records, action.getAssertions());
 
-                code(scenario, action, id, """
+                String afterCommand = "";
+                if (_action.getType() == Scenario.ActionType.AUDITLOG) {
+                    afterCommand =
+                            matchedRecords
+                                    .stream()
+                                    .map(ConsumerRecord::value)
+                                    .map(e -> jsonStringToPrettyJsonString(e))
+                                    .collect(joining("\n", "```json\n", "\n```\n"));
+
+                }
+
+                code(scenario, action, id, afterCommand, """
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
-                                    --topic %s%s%s%s%s%s
+                                    --topic %s%s%s%s%s%s%s
                                 """,
                         kafkaBoostrapServers(services, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
-                        action.getAssertSize() == null ? "" : " \\\n    --timeout-ms " + timeout,
+                        (action.getAssertSize() == null && action.getTimeout() == null) ? "" : " \\\n    --timeout-ms " + timeout,
                         action.getGroupId() == null ? "" : " \\\n    --group " + action.getGroupId(),
-                        !action.getShowHeaders() ? " | jq" : " \\\n    --property print.headers=true"
+                        !action.getShowHeaders() ? " " : " \\\n    --property print.headers=true",
+                        action.getShowHeaders() ? " " : "\\\n | " + action.getJq()
                 );
             }
             case FAILOVER -> {
@@ -675,7 +696,7 @@ public class ScenarioTest {
                         .extract()
                         .response();
 
-                code(scenario, action, id, """
+                code(scenario, action, id, "", """
                                 curl \\
                                   --silent \\
                                   --request POST '%s/admin/pclusters/v1/pcluster/%s/switch?to=%s' \\
@@ -726,7 +747,7 @@ public class ScenarioTest {
                                         PRETTY_OBJECT_MAPPER
                                                 .writeValueAsString(pluginBody)));
 
-                        code(scenario, action, id, """
+                        code(scenario, action, id, "", """
                                         curl \\
                                             --silent \\
                                             --request POST "%s/admin/interceptors/v1/vcluster/%s%s/interceptor/%s" \\
@@ -758,7 +779,7 @@ public class ScenarioTest {
                             .delete("/vcluster/{vcluster}/interceptor/{pluginName}", vcluster, name).
                             then()
                             .statusCode(SC_NO_CONTENT);
-                    code(scenario, action, id, """
+                    code(scenario, action, id, "", """
                                     curl \\
                                         --silent \\
                                         --request DELETE "%s/admin/interceptors/v1/vcluster/%s/interceptor/%s" \\
@@ -797,7 +818,7 @@ public class ScenarioTest {
                             .extracting(PluginResponse::getName)
                             .contains(assertion);
                 }
-                code(scenario, action, id, """
+                code(scenario, action, id, "", """
                                 curl \\
                                     --silent \\
                                     --request GET "%s/admin/interceptors/v1/vcluster/%s/interceptors" \\
@@ -876,7 +897,7 @@ public class ScenarioTest {
                         }
                     }
                 }
-                code(scenario, action, id,
+                code(scenario, action, id, "",
                         "%s",
                         command);
 
@@ -903,7 +924,7 @@ public class ScenarioTest {
                     expandedScript = replace(expandedScript, "${GATEWAY_HOST}", gatewayHost(action));
                 }
 
-                code(scenario, action, id, removeEnd(expandedScript, "\n"));
+                code(scenario, action, id, "", removeEnd(expandedScript, "\n"));
 
                 for (int iteration = 1; iteration <= action.getIteration(); iteration++) {
                     String script = "step-" + id + "-" + action.getType() + ".sh";
@@ -959,13 +980,32 @@ public class ScenarioTest {
                 }
 
 
-                code(scenario, action, id, """
+                code(scenario, action, id, "", """
                                 cat clientConfig/%s
                                 """,
                         action.getKafkaConfig());
 
             }
         }
+    }
+
+    private String afterCommandException(Exception e) {
+        String message = e.getMessage();
+        message = StringUtils.replace(message, "java.util.concurrent.ExecutionException: ", "");
+        message = StringUtils.replace(message, "Exception: ", "Exception:\n");
+        message = StringUtils.replace(message, ". Topic ", ".\nTopic");
+        message = StringUtils.replace(message, "\n", "\n>");
+
+        return format("""
+                        > [!IMPORTANT]
+                        > We get the following exception
+                        >
+                        > ```sh
+                        > %s
+                        > ```
+                                                            
+                        """,
+                message);
     }
 
     private String gatewayHost(Scenario.Action action) {
@@ -1066,7 +1106,7 @@ public class ScenarioTest {
                     inputHeaders.add(new RecordHeader(header.getKey(), header.getValue().getBytes()));
                 }
             }
-            ProducerRecord<String, String> recordRequest = KafkaActionUtils.record(topic, message.getKey(), message.getValue(), (List<Header>) inputHeaders);
+            ProducerRecord<String, String> recordRequest = KafkaActionUtils.record(topic, message.getKey(), message.getValue(), inputHeaders);
             var recordMetadata = producer.send(recordRequest).get();
             assertThat(recordMetadata.hasOffset()).isTrue();
         }
@@ -1122,12 +1162,11 @@ public class ScenarioTest {
         List<PluginResponse> interceptors;
     }
 
-    private static void assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
+    private static List<ConsumerRecord<String, String>> assertRecords(List<ConsumerRecord<String, String>> records, List<Scenario.RecordAssertion> recordAssertions) {
 
         String keys = records.stream().map(ConsumerRecord::key).collect(joining("\n"));
         String values = records.stream().map(ConsumerRecord::value).collect(joining("\n"));
         List<Header> headers = records.stream().flatMap(r -> getHeaders(r).stream()).toList();
-
 
         for (Scenario.RecordAssertion recordAssertion : recordAssertions) {
             boolean validKey = validate(recordAssertion.getKey(), keys);
@@ -1154,6 +1193,17 @@ public class ScenarioTest {
                                 validHeader ? "" : headers));
             }
         }
+        List<ConsumerRecord<String, String>> matchedRecords = new ArrayList<>();
+        for (ConsumerRecord<String, String> record : records) {
+            boolean match = true;
+            for (Scenario.RecordAssertion recordAssertion : recordAssertions) {
+                match &= validate(recordAssertion.getValue(), record.value());
+            }
+            if (match) {
+                matchedRecords.add(record);
+            }
+        }
+        return matchedRecords;
     }
 
     private static boolean validateHeaders(LinkedHashMap<String, Scenario.Assertion> assertions, List<Header> headers) {
@@ -1220,7 +1270,7 @@ public class ScenarioTest {
         }
     }
 
-    private static void code(Scenario scenario, Scenario.Action action, String id, String format, String... args) throws Exception {
+    private static void code(Scenario scenario, Scenario.Action action, String id, String afterCommand, String format, String... args) throws Exception {
 
         String step = "step-" + id + "-" + action.getType();
         appendTo("run.sh", format("""
@@ -1235,7 +1285,7 @@ public class ScenarioTest {
                                 ```sh
                                 %s
                                 ```
-
+                                %s
                                 <details>
                                   <summary>Realtime command output</summary>
 
@@ -1254,6 +1304,7 @@ public class ScenarioTest {
 
                                 """,
                         removeEnd(format(format, args), "\n"),
+                        isBlank(afterCommand) ? "" : "\n" + afterCommand + "\n",
                         action.getTitle(),
                         step,
                         step
@@ -1279,5 +1330,14 @@ public class ScenarioTest {
 
     public static String uriEncode(String s) throws Exception {
         return URLEncoder.encode(s, "UTF-8").replace("*", "%2A");
+    }
+
+    public static String jsonStringToPrettyJsonString(String json) {
+        try {
+            JsonNode jsonNode = PRETTY_OBJECT_MAPPER.readTree(json);
+            return PRETTY_OBJECT_MAPPER.writeValueAsString(jsonNode);
+        } catch (JsonProcessingException e) {
+            return json;
+        }
     }
 }

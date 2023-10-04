@@ -240,6 +240,41 @@ actions:
     markdown: |
       Producing a record matching our policy
 
+  - type: ADD_INTERCEPTORS
+    markdown: |
+      Let's add some rate limiting policy on produce
+    gateway: gateway1
+    interceptors:
+      teamA:
+        produce-rate:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.ProducerRateLimitingPolicyPlugin"
+          "priority": 100
+          "config": {
+            "maximumBytesPerSecond": 1
+          }
+
+  - type: PRODUCE
+    title: Produce sample data
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: cars
+    acks: -1
+    compression: none
+    messages:
+      - value: '{"type":"Fiat","color":"red","price":-1}'
+    markdown: |
+      Do not match our produce rate policy
+
+  - type: AUDITLOG
+    title: Check in the audit log that produce was throttled
+    kafka: kafka1
+    jqCommand: 'select(.type == "SAFEGUARD" and .eventData.plugin=="io.conduktor.gateway.interceptor.safeguard.ProducerRateLimitingPolicyPlugin")'
+    assertions:
+      - description: Confirm RateLimitingPolicy audit has throttled produce
+        value:
+          operator: containsIgnoreCase
+          expected: 'which is more than 1 bytes per second, producer will be throttled'
+
   - type: DOCKER
     command: docker compose down --volumes
 

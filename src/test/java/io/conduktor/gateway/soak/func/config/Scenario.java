@@ -7,6 +7,7 @@ import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.stream.Collectors.joining;
 import static org.apache.commons.lang3.StringUtils.trimToEmpty;
@@ -69,6 +70,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = IntroductionAction.class, name = "INTRODUCTION"),
             @JsonSubTypes.Type(value = AsciinemaAction.class, name = "ASCIINEMA"),
             @JsonSubTypes.Type(value = ConclusionAction.class, name = "CONCLUSION"),
+            @JsonSubTypes.Type(value = AuditLogAction.class, name = "AUDITLOG"),
             @JsonSubTypes.Type(value = ShAction.class, name = "SH"),
             @JsonSubTypes.Type(value = StepAction.class, name = "STEP"),
             @JsonSubTypes.Type(value = DescribeKafkaPropertiesAction.class, name = "DESCRIBE_KAFKA_PROPERTIES"),
@@ -297,7 +299,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Producing " + messages.size() +  " message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "`";
+            return "Producing " + messages.size() + " message" + (messages.size() == 1 ? "" : "s") + " in `" + topic + "`";
         }
 
         @Override
@@ -324,13 +326,23 @@ public class Scenario {
         protected Boolean showRecords = false;
         protected Boolean showHeaders = false;
         protected String topic;
+        protected Boolean showMatchingRecords = false;
+
+        protected String jqCommand = "";
+
+        public String getJq() {
+            if (StringUtils.isBlank(getJqCommand())) {
+                return "jq";
+            }
+            return "jq '" + getJqCommand() + "'";
+        }
 
         @Override
         public String getTitle() {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Consuming from `" + topic + "`";
+            return "Consuming from `" + getTopic() + "`";
         }
 
         @Override
@@ -338,7 +350,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(markdown)) {
                 return markdown;
             }
-            return "Consuming from `" + topic + "` in cluster `" + kafka + "";
+            return "Consuming from `" + getTopic() + "` in cluster `" + kafka + "`";
         }
     }
 
@@ -559,7 +571,7 @@ public class Scenario {
             return switch (filename) {
                 case "docker-compose.yaml" -> String.format("""
                         As can be seen from `docker-compose.yaml` the demo environment consists of the following services:
-                        
+                                                
                         %s
                         """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^[[:space:]]\\{2\\}[^[:space:]]*\\:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g\""));
                 default -> null;
@@ -575,6 +587,15 @@ public class Scenario {
     }
 
     public static class StepAction extends Action {
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AuditLogAction extends ConsumeAction {
+        public String topic = "_auditLogs";
+        public Long timeout = TimeUnit.SECONDS.toMillis(3);
+        protected Boolean showMatchingRecords = true;
     }
 
     @Data
@@ -660,6 +681,7 @@ public class Scenario {
         DESCRIBE_TOPICS,
         ALTER_TOPICS,
         PRODUCE,
+        AUDITLOG,
         CONSUME,
         ADD_INTERCEPTORS,
         REMOVE_INTERCEPTORS,
