@@ -323,6 +323,7 @@ public class Scenario {
         protected Long timeout;
         protected Integer maxMessages;
         protected Integer assertSize;
+        protected Boolean assertError = false;
         protected Boolean showRecords = false;
         protected Boolean showHeaders = false;
         protected String topic;

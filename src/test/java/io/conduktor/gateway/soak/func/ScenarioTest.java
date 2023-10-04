@@ -601,17 +601,20 @@ public class ScenarioTest {
                 if (!properties.containsKey("group.id")) {
                     properties.put("group.id", "step-" + id);
                 }
+                if (action.getGroupId() != null) {
+                    properties.put("group.id", action.getGroupId());
+                }
                 if (!properties.containsKey("auto.offset.reset")) {
                     properties.put("auto.offset.reset", "earliest");
                 }
-                if (!properties.contains(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG)) {
+                if (!properties.containsKey(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG)) {
                     properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
                 }
                 final long timeout;
                 if (action.getTimeout() != null) {
                     timeout = action.getTimeout();
                 } else if (action.getAssertSize() != null || action.getMaxMessages() == null) {
-                    timeout = TimeUnit.SECONDS.toMillis(5);
+                    timeout = TimeUnit.SECONDS.toMillis(10);
                 } else {
                     timeout = TimeUnit.SECONDS.toMillis(15);
                 }
@@ -625,38 +628,50 @@ public class ScenarioTest {
                     maxRecords = 100;
                 }
 
-                var consumer = clientFactory.consumer(properties);
-                consumer.subscribe(Arrays.asList(action.getTopic()));
-                int recordCount = 0;
-                long startTime = System.currentTimeMillis();
+                String afterCommand = "";
                 var records = new ArrayList<ConsumerRecord<String, String>>();
+                try {
+                    var consumer = clientFactory.consumer(properties);
+                    consumer.subscribe(Arrays.asList(action.getTopic()));
+                    int recordCount = 0;
+                    long startTime = System.currentTimeMillis();
 
-                while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
-                    if (!(System.currentTimeMillis() < startTime + timeout)) break;
-                    var consumedRecords = consumer.poll(Duration.of(1, ChronoUnit.SECONDS));
-                    recordCount += consumedRecords.count();
-                    for (var record : consumedRecords) {
-                        if (action.getShowRecords()) {
-                            String headers = "";
-                            if (action.getShowHeaders() && record.headers() != null) {
-                                headers = Arrays.stream(record.headers().toArray()).map(e -> e.key() + ":" + new String(e.value())).collect(joining(", ")) + " ";
-                            }
-                            System.out.println(headers + record.value());
+                    while (recordCount < maxRecords || (action.getAssertSize() != null && recordCount > action.getAssertSize())) {
+                        if (System.currentTimeMillis() >= (startTime + timeout)) {
+                            break;
                         }
-                        records.add(record);
+                        var consumedRecords = consumer.poll(Duration.of(500, ChronoUnit.MILLIS));
+                        recordCount += consumedRecords.count();
+                        for (var record : consumedRecords) {
+                            if (action.getShowRecords()) {
+                                String headers = "";
+                                if (action.getShowHeaders() && record.headers() != null) {
+                                    headers = Arrays.stream(record.headers().toArray()).map(e -> e.key() + ":" + new String(e.value())).collect(joining(", ")) + " ";
+                                }
+                                System.out.println(headers + record.value());
+                            }
+                            records.add(record);
+                        }
                     }
+                    assertThat(records).isNotNull();
+                    if (Objects.nonNull(action.getAssertSize())) {
+                        assertThat(records.size())
+                                .isGreaterThanOrEqualTo(action.getAssertSize());
+                    }
+                } catch (Exception e) {
+                    if (!action.getAssertError()) {
+                        Assertions.fail("Could not fetch message on " + action.getTopic(), e);
+                    }
+                    log.error("could not fetch message ", e);
+                    afterCommand = afterCommandException(e);
                 }
-                assertThat(records).isNotNull();
-                if (Objects.nonNull(action.getAssertSize())) {
-                    assertThat(records.size())
-                            .isGreaterThanOrEqualTo(action.getAssertSize());
-                }
+
+
                 List<ConsumerRecord<String, String>> matchedRecords = assertRecords(records, action.getAssertions());
 
-                String afterCommand = "";
-                if (_action.getType() == Scenario.ActionType.AUDITLOG) {
-                    afterCommand =
-                            matchedRecords
+                if (!matchedRecords.isEmpty() && _action.getType() == Scenario.ActionType.AUDITLOG) {
+                    afterCommand +=
+                            "\n" + matchedRecords
                                     .stream()
                                     .map(ConsumerRecord::value)
                                     .map(e -> jsonStringToPrettyJsonString(e))
