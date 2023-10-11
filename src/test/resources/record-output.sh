@@ -6,16 +6,18 @@ for stepSh in $(ls step*sh | sort ) ; do
 
     if ! awk 'NF{exit 1}' output/$step.txt; then
       echo """
-      <details>
-      <summary>Command output</summary>
-      \`\`\`sh
-      """ > output/$step.md
+<details>
+<summary>Command output</summary>
+
+\`\`\`sh
+""" > output/$step.md
 
       cat output/$step.txt >> output/$step.md
 
       echo """
-      \`\`\`
-      </details>
+\`\`\`
+
+</details>
       """ >> output/$step.md
 
       awk '

@@ -1,5 +1,6 @@
 package io.conduktor.gateway.soak.func.config;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.conduktor.gateway.soak.func.ScenarioTest;
@@ -64,6 +65,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = AddInterceptorAction.class, name = "ADD_INTERCEPTORS"),
             @JsonSubTypes.Type(value = RemoveInterceptorAction.class, name = "REMOVE_INTERCEPTORS"),
             @JsonSubTypes.Type(value = AddTopicMappingAction.class, name = "ADD_TOPIC_MAPPING"),
+            @JsonSubTypes.Type(value = CreateConcentratedTopicAction.class, name = "CREATE_CONCENTRATED_TOPIC"),
             @JsonSubTypes.Type(value = ListInterceptorAction.class, name = "LIST_INTERCEPTORS"),
             @JsonSubTypes.Type(value = DocumentationAction.class, name = "DOCUMENTATION"),
             @JsonSubTypes.Type(value = FileAction.class, name = "FILE"),
@@ -229,7 +231,8 @@ public class Scenario {
                     + " " + topics
                     .stream()
                     .map(CreateTopicRequest::getName)
-                    .collect(joining(",", "`", "`"));
+                    .collect(joining(",", "`", "`"))
+                    + " on `" + getKafka() + "`";
         }
 
         @Override
@@ -327,6 +330,7 @@ public class Scenario {
         protected Boolean showRecords = false;
         protected Boolean showHeaders = false;
         protected String topic;
+        protected String include;
         protected Boolean showMatchingRecords = false;
 
         protected String jqCommand = "";
@@ -343,7 +347,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(title)) {
                 return title;
             }
-            return "Consuming from `" + getTopic() + "`";
+            return "Consuming from `" + (StringUtils.isEmpty(getTopic()) ? getInclude() : getTopic()) + "`";
         }
 
         @Override
@@ -351,7 +355,7 @@ public class Scenario {
             if (StringUtils.isNotBlank(markdown)) {
                 return markdown;
             }
-            return "Consuming from `" + getTopic() + "` in cluster `" + kafka + "`";
+            return getTitle() + " in cluster `" + kafka + "`";
         }
     }
 
@@ -447,41 +451,49 @@ public class Scenario {
     @AllArgsConstructor
     @EqualsAndHashCode(callSuper = true)
     public static class AddTopicMappingAction extends GatewayAction {
-        protected String topicPattern;
-        protected String physicalTopicName;
+        private TopicMappingRequest mapping;
+        protected String logicalTopicName;
 
-        @Override
-        public String getTitle() {
-            if (StringUtils.isNotBlank(title)) {
-                return title;
-            }
-            return "Creating mapping from `" + topicPattern + "` to `" + physicalTopicName + "`";
+        @Data
+        @NoArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public static class TopicMappingRequest {
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            protected String clusterId;
+            protected String physicalTopicName;
+            protected boolean readOnly;
+            protected boolean concentrated;
         }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    public static class CreateConcentratedTopicAction extends GatewayAction {
+        protected String topicPattern;
+        protected TopicMapping mapping;
 
         @Override
         public String getMarkdown() {
-            if (StringUtils.isNotBlank(markdown)) {
-                return markdown;
-            }
             return String.format("""
-                            Let's tell the `%s` that topic matching the pattern `%s` need to be concentrated into the underlying `%s` physical topic.
+                            Let's tell `%s` that topics matching the pattern `%s` need to be concentrated into the underlying `%s` physical topic.
 
                             > [!NOTE]
                             > You don’t need to create the physical topic that backs the concentrated topics, it will automatically be created when a client topic starts using the concentrated topic.
                             """,
                     getGateway(),
                     topicPattern,
-                    physicalTopicName);
+                    mapping.getPhysicalTopicName());
         }
 
         @Data
         @Builder
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
         public static class TopicMapping {
+            protected String logicalTopicName;
             protected String physicalTopicName;
-            public boolean readOnly = false;
-            public boolean concentrated = true;
         }
-
     }
 
     @Data
@@ -574,7 +586,7 @@ public class Scenario {
                         As can be seen from `docker-compose.yaml` the demo environment consists of the following services:
                                                 
                         %s
-                        """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^[[:space:]]\\{2\\}[^[:space:]]*\\:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g\""));
+                        """, ScenarioTest.executeSh(false, "bash", "-c", "grep \"^[[:space:]]\\{2\\}[^[:space:]]*\\:$\" docker-compose.yaml | cut -d ':' -f 1 | sed \"s/  /* /g | sort \""));
                 default -> null;
             };
         }
@@ -677,6 +689,7 @@ public class Scenario {
         FILE,
         CREATE_TOPICS,
         CREATE_VIRTUAL_CLUSTERS,
+        CREATE_CONCENTRATED_TOPIC,
         ADD_TOPIC_MAPPING,
         LIST_TOPICS,
         DESCRIBE_TOPICS,

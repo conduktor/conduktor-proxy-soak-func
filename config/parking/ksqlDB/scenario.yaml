@@ -17,7 +17,6 @@ services:
       bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
   gateway1:
     docker:
-      image: conduktor/conduktor-gateway:2.1.5
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -28,7 +27,6 @@ services:
       gateway.host: http://localhost:8888
   gateway2:
     docker:
-      image: conduktor/conduktor-gateway:2.1.5
       environment:
         GATEWAY_ADVERTISED_HOST: localhost
         GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
@@ -94,7 +92,7 @@ actions:
     gateway: gateway1
     name: teamA
 
-  - type: ADD_TOPIC_MAPPING
+  - type: CREATE_CONCENTRATED_TOPIC
     gateway: gateway1
     vcluster: teamA
     physicalTopicName: concentrated

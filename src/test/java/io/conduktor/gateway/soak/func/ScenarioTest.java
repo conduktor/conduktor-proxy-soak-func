@@ -8,7 +8,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import io.conduktor.gateway.soak.func.config.PluginRequest;
 import io.conduktor.gateway.soak.func.config.PluginResponse;
 import io.conduktor.gateway.soak.func.config.Scenario;
-import io.conduktor.gateway.soak.func.config.Scenario.AddTopicMappingAction.TopicMapping;
+import io.conduktor.gateway.soak.func.config.Scenario.AddTopicMappingAction.TopicMappingRequest;
+import io.conduktor.gateway.soak.func.config.Scenario.CreateConcentratedTopicAction.TopicMapping;
 import io.conduktor.gateway.soak.func.config.Scenario.DescribeTopicsAction.DescribeTopicsActionAssertions;
 import io.conduktor.gateway.soak.func.config.support.YamlConfigReader;
 import io.conduktor.gateway.soak.func.utils.ClientFactory;
@@ -51,6 +52,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.conduktor.gateway.soak.func.utils.DockerComposeUtils.getUpdatedDockerCompose;
@@ -272,27 +274,22 @@ public class ScenarioTest {
                                         ScenarioTest.executeSh(false, "bash", "-c", "docker compose ps"))
                         ));
             }
-            case ADD_TOPIC_MAPPING -> {
-                var action = ((Scenario.AddTopicMappingAction) _action);
+            case CREATE_CONCENTRATED_TOPIC -> {
+                var action = ((Scenario.CreateConcentratedTopicAction) _action);
 
                 String gateway = gatewayHost(action);
                 String vcluster = vCluster(action);
-                TopicMapping topicMapping = TopicMapping
-                        .builder()
-                        .physicalTopicName(action.getPhysicalTopicName())
-                        .concentrated(true)
-                        .build();
+                TopicMapping mapping = action.getMapping();
                 String topicPattern = uriEncode(action.getTopicPattern());
 
-                log.debug("Adding topic mapping in " + vcluster + " for " + topicPattern + " with " + topicMapping);
+                log.debug("Create concentrated topic in " + vcluster + " for " + topicPattern + " with " + mapping);
 
                 Response post = given()
                         .baseUri(gateway + "/admin/vclusters/v1")
                         .auth()
-
                         .basic(ADMIN_USER, ADMIN_PASSWORD)
                         .contentType(ContentType.JSON)
-                        .body(topicMapping).
+                        .body(mapping).
                         when()
                         .urlEncodingEnabled(false)
                         .post("/vcluster/{vcluster}/topics/{topicPattern}", vcluster, topicPattern);
@@ -300,22 +297,55 @@ public class ScenarioTest {
                         then()
                         .statusCode(SC_OK);
 
+
                 code(scenario, action, id, "", """
                                 curl \\
                                     --silent \\
                                     --user "admin:conduktor" \\
                                     --request POST '%s/admin/vclusters/v1/vcluster/%s/topics/%s' \\
                                     --header 'Content-Type: application/json' \\
-                                    --data-raw '{
-                                        "physicalTopicName": "%s",
-                                        "readOnly": false,
-                                        "concentrated": true
-                                    }' | jq
+                                    --data-raw '%s' | jq
                                 """,
                         gateway,
                         vcluster,
                         topicPattern,
-                        action.getPhysicalTopicName());
+                        PRETTY_OBJECT_MAPPER.writeValueAsString(mapping));
+            }
+            case ADD_TOPIC_MAPPING -> {
+                var action = ((Scenario.AddTopicMappingAction) _action);
+
+                String gateway = gatewayHost(action);
+                String vcluster = vCluster(action);
+                TopicMappingRequest mapping = action.getMapping();
+
+                log.debug("Create mapping topic in " + vcluster + " for " + mapping);
+
+                code(scenario, action, id, "", """
+                                curl \\
+                                    --silent \\
+                                    --user "admin:conduktor" \\
+                                    --request POST '%s/admin/vclusters/v1/vcluster/%s/topics/%s' \\
+                                    --header 'Content-Type: application/json' \\
+                                    --data-raw '%s' | jq
+                                """,
+                        gateway,
+                        vcluster,
+                        action.getLogicalTopicName(),
+                        PRETTY_OBJECT_MAPPER.writeValueAsString(mapping));
+
+                Response post = given()
+                        .baseUri(gateway + "/admin/vclusters/v1")
+                        .auth()
+                        .basic(ADMIN_USER, ADMIN_PASSWORD)
+                        .contentType(ContentType.JSON)
+                        .body(mapping).
+                        when()
+                        .urlEncodingEnabled(false)
+                        .post("/vcluster/{vcluster}/topics/{topicPattern}", vcluster, action.getLogicalTopicName());
+                post.
+                        then()
+                        .statusCode(SC_OK);
+
             }
             case CREATE_VIRTUAL_CLUSTERS -> {
                 var action = ((Scenario.CreateVirtualClustersAction) _action);
@@ -435,7 +465,9 @@ public class ScenarioTest {
             }
             case LIST_TOPICS -> {
                 var action = ((Scenario.ListTopicsAction) _action);
-                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                Properties properties = getProperties(services, action);
+                System.out.println(properties);
+                var adminClient = clientFactory.kafkaAdmin(properties);
                 Set<String> topics = adminClient.listTopics().names().get();
                 code(scenario, action, id, "", """
                                 kafka-topics \\
@@ -632,7 +664,11 @@ public class ScenarioTest {
                 var records = new ArrayList<ConsumerRecord<String, String>>();
                 try {
                     var consumer = clientFactory.consumer(properties);
-                    consumer.subscribe(Arrays.asList(action.getTopic()));
+                    if (StringUtils.isNotBlank(action.getInclude())) {
+                        consumer.subscribe(Pattern.compile(action.getInclude()));
+                    } else {
+                        consumer.subscribe(Arrays.asList(action.getTopic()));
+                    }
                     int recordCount = 0;
                     long startTime = System.currentTimeMillis();
 
@@ -682,10 +718,12 @@ public class ScenarioTest {
                 code(scenario, action, id, afterCommand, """
                                 kafka-console-consumer \\
                                     --bootstrap-server %s%s \\
-                                    --topic %s%s%s%s%s%s%s
+                                    --%s %s%s%s%s%s%s%s
                                 """,
                         kafkaBoostrapServers(services, action),
                         action.getKafkaConfig() == null ? "" : " \\\n    --consumer.config " + action.getKafkaConfig(),
+                        StringUtils.isNotBlank(action.getTopic()) ? "topic" : "include",
+                        StringUtils.isNotBlank(action.getTopic()) ? action.getTopic() : "\"" + action.getInclude() + "\"",
                         action.getTopic(),
                         "earliest".equals(properties.get("auto.offset.reset")) ? " \\\n    --from-beginning" : "",
                         action.getMaxMessages() == null ? "" : " \\\n    --max-messages " + maxRecords,
