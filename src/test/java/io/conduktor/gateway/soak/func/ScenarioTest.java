@@ -408,6 +408,38 @@ public class ScenarioTest {
                         action.getServiceAccount());
 
             }
+            case DELETE_TOPICS -> {
+                var action = ((Scenario.DeleteTopicAction) _action);
+                var adminClient = clientFactory.kafkaAdmin(getProperties(services, action));
+                String deleteTopics = "";
+                for (String topic : action.getTopics()) {
+                    deleteTopics += String.format("""
+                                    kafka-topics \\
+                                        --bootstrap-server %s%s \\
+                                        --delete \\
+                                        --topic %s \\
+                                        --if-exists
+                                    """,
+                            kafkaBoostrapServers(services, action),
+                            action.getKafkaConfig() == null ? "" : " \\\n    --command-config " + action.getKafkaConfig(),
+                            topic
+                    );
+                }
+                System.out.println(deleteTopics);
+                try {
+                    adminClient.deleteTopics(action.getTopics());
+                } catch (Exception e) {
+                    if (!action.getAssertErrorMessages().isEmpty()) {
+                        assertThat(e.getMessage())
+                                .containsIgnoringWhitespaces(action.getAssertErrorMessages().toArray(new String[0]));
+                    }
+                    if (!action.getAssertError()) {
+                        Assertions.fail("Did not expect an error during the deletion of topics" + action.getTopics(), e);
+                    }
+                }
+
+
+            }
             case CREATE_TOPICS -> {
                 var action = ((Scenario.CreateTopicsAction) _action);
 

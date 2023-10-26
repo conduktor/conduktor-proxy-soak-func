@@ -59,6 +59,7 @@ public class Scenario {
             @JsonSubTypes.Type(value = ConsumeAction.class, name = "CONSUME"),
             @JsonSubTypes.Type(value = CreateTopicsAction.class, name = "CREATE_TOPICS"),
             @JsonSubTypes.Type(value = AlterTopicAction.class, name = "ALTER_TOPICS"),
+            @JsonSubTypes.Type(value = DeleteTopicAction.class, name = "DELETE_TOPICS"),
             @JsonSubTypes.Type(value = CreateVirtualClustersAction.class, name = "CREATE_VIRTUAL_CLUSTERS"),
             @JsonSubTypes.Type(value = ListTopicsAction.class, name = "LIST_TOPICS"),
             @JsonSubTypes.Type(value = DescribeTopicsAction.class, name = "DESCRIBE_TOPICS"),
@@ -251,6 +252,46 @@ public class Scenario {
             for (CreateTopicRequest topic : topics) {
                 markdown += "* topic `" + topic.getName() + "` with partitions:" + topic.getPartitions() + " replication-factor:" + topic.getReplicationFactor();
             }
+
+            return markdown;
+        }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class DeleteTopicAction extends KafkaAction {
+
+
+        protected LinkedHashMap<String, String> properties = new LinkedHashMap<>();
+        protected List<String> topics;
+        protected Boolean assertError = false;
+        protected List<String> assertErrorMessages = List.of();
+
+        @Override
+        public String getTitle() {
+            if (StringUtils.isNotBlank(title)) {
+                return title;
+            }
+            return "Deleting topic" +
+                    (topics.size() == 1 ? "" : "s")
+                    + " " + topics
+                    .stream()
+                    .collect(joining(",", "`", "`"))
+                    + " on `" + getKafka() + "`";
+        }
+
+        @Override
+        public String getMarkdown() {
+            if (StringUtils.isNotBlank(markdown)) {
+                return markdown;
+            }
+            String markdown = "Deleting topic" +
+                    (topics.size() == 1 ? "" : "s")
+                    + " " + topics
+                    .stream()
+                    .collect(joining(",", "`", "`"))
+                    + " on `" + kafka + "`\n";
 
             return markdown;
         }
@@ -694,6 +735,7 @@ public class Scenario {
         LIST_TOPICS,
         DESCRIBE_TOPICS,
         ALTER_TOPICS,
+        DELETE_TOPICS,
         PRODUCE,
         AUDITLOG,
         CONSUME,

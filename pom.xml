@@ -50,7 +50,16 @@
             <version>${sl4j.version}</version>
             <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>software.amazon.msk</groupId>
+            <artifactId>aws-msk-iam-auth</artifactId>
+            <version>1.1.9</version>
+        </dependency>
+        <dependency>
+            <groupId>io.conduktor</groupId>
+            <artifactId>aws-msk_2.13</artifactId>
+            <version>1.40.0</version>
+        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -140,5 +149,23 @@
             </plugin>
         </plugins>
     </build>
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
+            <id>github</id>
+            <name>GitHub Conduktor Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/conduktor/_/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 
 </project>

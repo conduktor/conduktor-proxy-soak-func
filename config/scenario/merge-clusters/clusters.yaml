@@ -1,6 +1,0 @@
-config:
-  main:
-    bootstrap.servers: kafka1:9092
-
-  europe:
-    bootstrap.servers: kafka-europe1:9092

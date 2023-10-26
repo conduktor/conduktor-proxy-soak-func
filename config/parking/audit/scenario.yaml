@@ -1,0 +1,55 @@
+title: Audit
+services:
+  kafka1:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka2:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka3:
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  gateway1:
+    docker:
+      image: harbor.cdkt.dev/conduktor/conduktor-gateway
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8888
+  gateway2:
+    docker:
+      image: harbor.cdkt.dev/conduktor/conduktor-gateway
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8889
+
+actions:
+  - type: INTRODUCTION
+    title: What does audit do?
+    markdown: |
+
+  - type: ASCIINEMA
+
+  - type: FILE
+    filename: docker-compose.yaml
+
+  - type: DOCKER
+    command: docker compose up --detach --wait
+
+  - type: AUDITLOG
+    title: Check in the audit log that produce was throttled
+    kafka: kafka1
+    jqCommand: 'select(.type == "SAFEGUARD" and .eventData.plugin=="io.conduktor.gateway.interceptor.safeguard.ProducerRateLimitingPolicyPlugin")'
+    assertions:
+      - description: Confirm ProducerRateLimitingPolicyPlugin audit has throttled produce
+        value:
+          operator: containsIgnoreCase
+          expected: 'which is more than 1 bytes per second, producer will be throttled'
+

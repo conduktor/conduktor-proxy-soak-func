@@ -180,3 +180,8 @@ services:
 
 networks:
   demo:
+
+volumes:
+  pg_data: {}
+  conduktor_data: {}
+  redpanda-0: {}
