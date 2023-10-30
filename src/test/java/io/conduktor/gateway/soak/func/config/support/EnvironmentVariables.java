@@ -22,11 +22,6 @@ import static java.lang.System.*;
 public class EnvironmentVariables {
 
     private static final Pattern ENV_VAR_PATTERN = Pattern.compile("(?i)\\$\\{([a-z0-9_]+)(\\s*\\|(.+)\\s*)?\\}");
-    public static Properties resolve(Properties properties) {
-        var propertiesResult = new Properties();
-        properties.forEach((key, value) -> propertiesResult.put(key, resolve((String) value)));
-        return propertiesResult;
-    }
 
     public static String resolve(String input) {
         var resolved = input;

@@ -1,0 +1,131 @@
+title: ksqldb
+services:
+  kafka1:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka2:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  kafka3:
+    environment:
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: false
+    properties:
+      bootstrap.servers: localhost:29092,localhost:29093,localhost:29094
+  gateway1:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8888
+  gateway2:
+    docker:
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        GATEWAY_CLUSTER_ID: private
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8889
+  ksqldb-server:
+    docker:
+      image: confluentinc/ksqldb-server:0.29.0
+      hostname: ksqldb-server
+      container_name: ksqldb-server
+      network_mode: host
+      profiles:
+        - ksqldb
+      depends_on:
+        kafka1:
+          condition: service_healthy
+        kafka2:
+          condition: service_healthy
+        kafka3:
+          condition: service_healthy
+      ports:
+        - "8088:8088"
+      healthcheck:
+        test: curl localhost:8088/health
+        interval: 5s
+        retries: 25
+      environment:
+        KSQL_LISTENERS: http://0.0.0.0:8088
+        KSQL_BOOTSTRAP_SERVERS: ${KSQL_BOOTSTRAP_SERVERS:-}
+        KSQL_SECURITY_PROTOCOL: ${KSQL_SECURITY_PROTOCOL:-}
+        KSQL_SASL_MECHANISM: ${KSQL_SASL_MECHANISM:-}
+        KSQL_SASL_JAAS_CONFIG: ${KSQL_SASL_JAAS_CONFIG:-}
+        KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: "true"
+        KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
+  ksqldb-cli:
+    docker:
+      image: confluentinc/ksqldb-cli:0.29.0
+      container_name: ksqldb-cli
+      profiles:
+        - ksqldb
+      depends_on:
+        ksqldb-server:
+          condition: service_healthy
+      entrypoint: /bin/sh
+      tty: "true"
+actions:
+
+  - type: INTRODUCTION
+    title: a ksqlDB experience on concentrated topics
+
+  - type: ASCIINEMA
+
+  - type: FILE
+    filename: docker-compose.yaml
+
+  - type: DOCKER
+    command: docker compose up --detach --wait
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway1
+    name: teamA
+
+  - type: CREATE_CONCENTRATED_TOPIC
+    gateway: gateway1
+    vcluster: teamA
+    physicalTopicName: concentrated
+    topicPattern: .*
+
+  - type: DOCKER
+    kafka: teamA
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: "${BOOTSTRAP_SERVERS}"
+      KSQL_SECURITY_PROTOCOL: "${SECURITY_PROTOCOL}"
+      KSQL_SASL_MECHANISM: "${SASL_MECHANISM}"
+      KSQL_SASL_JAAS_CONFIG: "${SASL_JAAS_CONFIG}"
+    title: Start ksqlDB
+    command: docker compose --profile ksqldb up -d --wait
+
+  - type: LIST_TOPICS
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    assertExists:
+      - _confluent-ksql-default__command_topic
+      - default_ksql_processing_log
+
+  - type: LIST_TOPICS
+    kafka: kafka1
+    assertExists:
+      - concentrated
+    assertDoesNotExist:
+      - _confluent-ksql-default__command_topic
+      - default_ksql_processing_log
+
+  - type: DOCKER
+    command: docker compose down --volumes
+
+  - type: CONCLUSION
+    markdown: |
+      ksqlDB can run in a virtual cluster where all its topics are concentrated into a single physical topic 

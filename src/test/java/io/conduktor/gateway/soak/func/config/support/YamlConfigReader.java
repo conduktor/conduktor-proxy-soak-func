@@ -23,24 +23,12 @@ public class YamlConfigReader<ConfigType> {
         return new YamlConfigReader<>(type);
     }
 
-    public ConfigType readYaml(String yamlFilePath) throws IOException {
-        var path = Paths.get(yamlFilePath);
-        var lines = Files.lines(path);
-        var data = lines.collect(Collectors.joining("\n"));
-        var resolvedData = EnvironmentVariables.resolve(data);
-        lines.close();
-        var mapper = new ObjectMapper(new YAMLFactory());
-        mapper.findAndRegisterModules();
-        return mapper.readValue(resolvedData, type);
-    }
-
     public ConfigType readYamlInResources(String yamlFilePath) throws IOException {
         // The class loader that loaded the class
         var all = stringFromFile(yamlFilePath);
-        var resolvedData = EnvironmentVariables.resolve(all);
         var mapper = new ObjectMapper(new YAMLFactory().disable(YAMLGenerator.Feature.USE_NATIVE_TYPE_ID));
         mapper.findAndRegisterModules();
-        return mapper.readValue(resolvedData, type);
+        return mapper.readValue(all, type);
     }
 
     private String stringFromFile(String yamlFilePath) {

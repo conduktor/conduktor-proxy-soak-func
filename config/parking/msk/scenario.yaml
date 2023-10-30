@@ -1,0 +1,274 @@
+title: MSK
+services:
+  kafka1:
+    properties:
+      bootstrap.servers: b-1-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-3-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-2-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198
+  kafka2:
+    properties:
+      bootstrap.servers: b-1-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-3-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-2-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198
+  kafka3:
+    properties:
+      bootstrap.servers: b-1-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-3-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198,b-2-public.democluster0.36hjn2.c4.kafka.eu-west-1.amazonaws.com:9198
+  gateway1:
+    docker:
+      image: harbor.cdkt.dev/conduktor/conduktor-gateway
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path: /msk.properties }'
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        AWS_ACCESS_KEY_ID: AKIARTPTTEZJO4FCKYSM
+        AWS_SECRET_ACCESS_KEY: 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
+      volumes:
+        - type: bind
+          source: "./msk.properties"
+          target: /msk.properties
+          read_only: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8888
+  gateway2:
+    docker:
+      image: harbor.cdkt.dev/conduktor/conduktor-gateway
+      environment:
+        GATEWAY_ADVERTISED_HOST: localhost
+        GATEWAY_BACKEND_KAFKA_SELECTOR: 'file : { path: /msk.properties }'
+        GATEWAY_SECURITY_PROTOCOL: SASL_PLAINTEXT
+        GATEWAY_FEATURE_FLAGS_MULTI_TENANCY: true
+        AWS_ACCESS_KEY_ID: AKIARTPTTEZJO4FCKYSM
+        AWS_SECRET_ACCESS_KEY: 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
+      volumes:
+        - type: bind
+          source: "./msk.properties"
+          target: /msk.properties
+          read_only: true
+    properties:
+      bootstrap.servers: localhost:6969
+      gateway.host: http://localhost:8889
+
+  postgresql:
+    docker:
+      image: postgres:14
+      hostname: postgresql
+      volumes:
+        - pg_data:/var/lib/postgresql/data
+      environment:
+        PGDATA: "/var/lib/postgresql/data"
+        POSTGRES_DB: "conduktor-platform"
+        POSTGRES_USER: "conduktor"
+        POSTGRES_PASSWORD: "change_me"
+        POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+
+  conduktor-platform:
+    docker:
+      image: conduktor/conduktor-platform:1.18.2
+      depends_on:
+        - postgresql
+      ports:
+        - "8080:8080"
+      volumes:
+        - conduktor_data:/var/conduktor
+      healthcheck:
+        test: curl -f http://localhost:8080/platform/api/modules/health/live || exit 1
+        interval: 10s
+        start_period: 10s
+        timeout: 5s
+        retries: 3
+      environment:
+        CDK_DATABASE_URL: "postgresql://conduktor:change_me@postgresql:5432/conduktor-platform"
+        CDK_MONITORING_CORTEX-URL: http://conduktor-monitoring:9009/
+        CDK_MONITORING_ALERT-MANAGER-URL: http://conduktor-monitoring:9010/
+        CDK_MONITORING_CALLBACK-URL: http://conduktor-platform:8080/monitoring/api/
+        CDK_MONITORING_NOTIFICATIONS-CALLBACK-URL: http://localhost:8080
+
+  conduktor-monitoring:
+    docker:
+      image: conduktor/conduktor-platform-cortex:1.18.2
+      environment:
+        CDK_CONSOLE-URL: "http://conduktor-platform:8080"
+
+actions:
+
+  - type: DELETE_TOPICS
+    kafka: kafka1
+    kafkaConfig: msk.properties
+    topics:
+      - _acls
+      - _auditLogs
+      - _consumerGroupSubscriptionBackingTopic
+      - _interceptorConfigs
+      - _license
+      - _offsetStore
+      - _topicMappings
+      - _topicRegistry
+
+  - type: INTRODUCTION
+    title: MSK
+    markdown: |
+      Let's test with MSK
+      
+      You'll need to have in your environment
+      
+      export AWS_ACCESS_KEY_ID=AKIARTPTTEZJO4FCKYSM
+      export AWS_SECRET_KEY=SIZz4IjYVDAGLaxoBhkpXRSCv8XjMuGoBtcew5iC
+  
+  
+      You'll also need to add in your the aws-isk-iam-auth library
+      
+      export CLASSPATH=aws-msk-iam-auth-1.1.9-all.jar
+
+  - type: ASCIINEMA
+
+  - type: FILE
+    filename: docker-compose.yaml
+
+  - type: DOCKER
+    command: docker compose up --detach --wait
+
+  - type: CREATE_VIRTUAL_CLUSTERS
+    gateway: gateway1
+    name: teamA
+
+  - type: FILE
+    title: Review the kafka properties to connect to `teamA`
+    filename: teamA-sa.properties
+
+  - type: CREATE_TOPICS
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topics:
+      - name: users3
+        replicationFactor: 1
+        partitions: 1
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway1
+    interceptors:
+      teamA:
+        inject-headers3:
+          "pluginClass": "io.conduktor.gateway.interceptor.DynamicHeaderInjectionPlugin"
+          "priority": 100
+          "config": {
+            "headers": {
+              "X-MY-KEY": "my own value",
+              "X-USER": "{{user}}",
+              "X-INTERPOLATED": "User {{user}} via ip {{userIp}}"
+            }
+          }
+    markdown: |
+      Let's create the interceptor to inject various headers
+
+  - type: PRODUCE
+    title: Send tom and florent into `users`
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users3
+    messages:
+      - value: '{"name":"tom","username":"tom@conduktor.io","password":"motorhead","visa":"#abc123","address":"Chancery lane, London"}'
+      - value: '{"name":"florent","username":"florent@conduktor.io","password":"kitesurf","visa":"#888999XZ","address":"Dubai, UAE"}'
+
+  - type: CONSUME
+    title: Verify tom and florent have the corresponding headers
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users3
+    showHeaders: true
+    maxMessages: 2
+    assertSize: 2
+    assertions:
+      - description: Confirm tom has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'tom'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+      - description: Confirm florent has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'florent'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+
+  - type: ADD_INTERCEPTORS
+    gateway: gateway1
+    interceptors:
+      teamA:
+        remove-headers:
+          "pluginClass": "io.conduktor.gateway.interceptor.safeguard.MessageHeaderRemovalPlugin"
+          "priority": 100
+          "config": {
+            "headerKeyRegex": "X-MY-.*"
+          }
+    markdown: |
+      Let's create the interceptor `remove-headers` to remove headers that match `X-MY-.*`
+
+
+  - type: CONSUME
+    title: Verify tom and florent have the corresponding headers
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users3
+    showHeaders: true
+    maxMessages: 2
+    assertSize: 2
+    assertions:
+      - description: Confirm `tom` has not the header `X-MY-KEY`
+        value:
+          operator: containsIgnoreCase
+          expected: 'tom'
+        headerKeys:
+          - operator: doesNotContainIgnoringCase
+            expected: 'my own value'
+      - description: Confirm `florent` has not the header `X-MY-KEY`
+        value:
+          operator: containsIgnoreCase
+          expected: 'florent'
+        headerKeys:
+          - operator: doesNotContainIgnoringCase
+            expected: 'my own value'
+
+  - type: REMOVE_INTERCEPTORS
+    gateway: gateway1
+    vcluster: teamA
+    names:
+      - remove-headers
+    markdown: |
+      Let's delete the interceptor `remove-headers` so we can access all our headers again
+
+  - type: CONSUME
+    title: Verify `tom` and `florent` have `X-MY-KEY` back
+    kafka: teamA
+    kafkaConfig: teamA-sa.properties
+    topic: users3
+    showHeaders: true
+    maxMessages: 2
+    assertSize: 2
+    assertions:
+      - description: Confirm tom has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'tom'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+      - description: Confirm florent has headers
+        value:
+          operator: containsIgnoreCase
+          expected: 'florent'
+        headers:
+          "X-MY-KEY":
+            operator: containsIgnoreCase
+            expected: 'my own value'
+
+  - type: DOCKER
+    command: docker compose down --volumes
+
+  - type: CONCLUSION
+    markdown: |
+      Leveraging headers in Kafka is of tremendous help!
+      

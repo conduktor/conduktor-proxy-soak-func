@@ -50,7 +50,16 @@
             <version>${sl4j.version}</version>
             <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>software.amazon.msk</groupId>
+            <artifactId>aws-msk-iam-auth</artifactId>
+            <version>1.1.9</version>
+        </dependency>
+        <dependency>
+            <groupId>io.conduktor</groupId>
+            <artifactId>aws-msk_2.13</artifactId>
+            <version>1.40.0</version>
+        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -91,10 +100,40 @@
         <dependency>
             <groupId>io.rest-assured</groupId>
             <artifactId>rest-assured</artifactId>
-            <version>5.1.1</version>
+            <version>5.3.1</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.4</version>
             <scope>test</scope>
         </dependency>
-        <!-- Add other dependencies as needed -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.13.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-expression</artifactId>
+            <version>6.0.11</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-all</artifactId>
+            <version>0.62.2</version> <!-- Use the latest version -->
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -110,5 +149,23 @@
             </plugin>
         </plugins>
     </build>
+    <repositories>
+        <repository>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
+            <id>github</id>
+            <name>GitHub Conduktor Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/conduktor/_/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 
 </project>
